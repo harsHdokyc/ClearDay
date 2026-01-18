@@ -18,6 +18,14 @@ const userSchema = new mongoose.Schema({
       required: true
     }
   },
+  customRoutineSteps: {
+    type: [String],
+    default: []
+  },
+  routineOrder: {
+    type: [String],
+    default: ['cleanser', 'treatment', 'moisturizer', 'sunscreen']
+  },
   createdAt: {
     type: Date,
     default: Date.now

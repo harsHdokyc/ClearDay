@@ -1,101 +1,40 @@
 import express from 'express';
-import Analytics from '../models/Analytics.js';
-import DailyLog from '../models/DailyLog.js';
-import User from '../models/User.js';
+import aiController from '../controllers/aiController.js';
+import { validateRequest, asyncHandler } from '../middleware/errorHandler.js';
+import { progressAnalysisSchema, productEvaluationSchema } from '../middleware/validation.js';
 
 const router = express.Router();
 
-// Updated routes - AI processing now happens in frontend using Puter.js
-// These routes handle data storage and retrieval only
+// Store progress analysis from frontend AI processing
+router.post('/progress-analysis', 
+  validateRequest(progressAnalysisSchema),
+  asyncHandler(aiController.storeProgressAnalysis.bind(aiController))
+);
 
-router.post('/progress-analysis', async (req, res) => {
-  try {
-    const { analysis } = req.body; // Analysis now comes from frontend
-    const auth = req.auth();
-    const userId = auth.userId;
-    
-    if (!analysis) {
-      return res.status(400).json({ error: 'Analysis data required' });
-    }
-    
-    const analytics = await Analytics.findOne({ userId });
-    if (analytics) {
-      analytics.progressMetrics.push({
-        date: new Date().toISOString().split('T')[0],
-        ...analysis
-      });
-      await analytics.save();
-    }
-    
-    res.json({ success: true, stored: true });
-  } catch (error) {
-    console.error('Progress Analysis Storage Error:', error);
-    res.status(500).json({ 
-      error: 'Failed to store analysis'
-    });
-  }
-});
+// Store product evaluation from frontend AI processing
+router.post('/product-evaluation', 
+  validateRequest(productEvaluationSchema),
+  asyncHandler(aiController.storeProductEvaluation.bind(aiController))
+);
 
-router.post('/product-evaluation', async (req, res) => {
-  try {
-    const { evaluation, productName } = req.body; // Evaluation now comes from frontend
-    const auth = req.auth();
-    const userId = auth.userId;
-    
-    if (!evaluation || !productName) {
-      return res.status(400).json({ error: 'Evaluation data and product name required' });
-    }
-    
-    const analytics = await Analytics.findOne({ userId });
-    if (analytics) {
-      analytics.productEvaluations.push({
-        date: new Date().toISOString().split('T')[0],
-        productName,
-        ...evaluation
-      });
-      await analytics.save();
-    }
-    
-    res.json({ success: true, stored: true });
-  } catch (error) {
-    console.error('Product Evaluation Storage Error:', error);
-    res.status(500).json({ 
-      error: 'Failed to store evaluation'
-    });
-  }
-});
+// Get user data for frontend AI processing
+router.get('/user-data', 
+  asyncHandler(aiController.getUserDataForAI.bind(aiController))
+);
 
-// Helper route to get user data for frontend AI processing
-router.get('/user-data', async (req, res) => {
-  try {
-    const auth = req.auth();
-    const userId = auth.userId;
-    
-    const user = await User.findOne({ clerkId: userId });
-    const analytics = await Analytics.findOne({ userId });
-    const recentLogs = await DailyLog.find({ userId })
-      .sort({ date: -1 })
-      .limit(7);
-    
-    res.json({
-      userProfile: {
-        skinGoal: user?.profile?.skinGoal,
-        skinType: user?.profile?.skinType,
-        totalDaysTracked: analytics?.totalDaysTracked || 0
-      },
-      recentLogs: recentLogs.map(log => ({
-        date: log.date,
-        acneLevel: log.acneLevel,
-        rednessLevel: log.rednessLevel,
-        notes: log.notes
-      }))
-    });
-  } catch (error) {
-    console.error('User Data Fetch Error:', error);
-    res.status(500).json({ 
-      error: 'Failed to fetch user data'
-    });
-  }
-});
+// Get user's progress metrics
+router.get('/progress-metrics', 
+  asyncHandler(aiController.getProgressMetrics.bind(aiController))
+);
+
+// Get user's product evaluations
+router.get('/product-evaluations', 
+  asyncHandler(aiController.getProductEvaluations.bind(aiController))
+);
+
+// Delete progress metric
+router.delete('/progress-metrics/:metricId', 
+  asyncHandler(aiController.deleteProgressMetric.bind(aiController))
+);
 
 export default router;

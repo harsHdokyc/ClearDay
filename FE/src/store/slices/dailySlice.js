@@ -29,6 +29,7 @@ const dailySlice = createSlice({
       state.datasetWarning = action.payload.datasetWarning;
       state.hasCompletedToday = action.payload.hasCompletedToday;
       state.hasUploadedToday = action.payload.hasUploadedToday;
+      state.todayLog = action.payload.todayLog; // Include todayLog data
       state.loading = false;
       state.error = null;
     },

@@ -3,6 +3,7 @@ import { useDispatch, useSelector } from 'react-redux';
 import { setProductEvaluation, setLoading } from '../store/slices/aiSlice.js';
 import { aiAPI } from '../services/api.js';
 import puterAI from '../services/puterAI.js';
+import { Sparkles, Target, Droplets, AlertCircle, ChevronRight, Award } from 'lucide-react';
 
 const ProductEvaluation = () => {
   const dispatch = useDispatch();
@@ -11,8 +12,8 @@ const ProductEvaluation = () => {
   
   const [formData, setFormData] = useState({
     productName: '',
-    goal: profile?.skinGoal || '',
-    skinType: profile?.skinType || '',
+    goal: profile?.profile?.skinGoal || '',
+    skinType: profile?.profile?.skinType || '',
     sensitivity: 'normal'
   });
 
@@ -42,7 +43,6 @@ const ProductEvaluation = () => {
     dispatch(setLoading(true));
     
     try {
-      // Use Puter.js for AI processing
       const evaluation = await puterAI.evaluateProduct(
         formData.productName,
         formData.goal,
@@ -52,23 +52,21 @@ const ProductEvaluation = () => {
       
       dispatch(setProductEvaluation(evaluation));
       
-      // Store result in backend
       await aiAPI.getProductEvaluation({
         evaluation,
         productName: formData.productName
       });
     } catch (error) {
       console.error('Failed to evaluate product:', error);
-      // No fallback - let the error propagate
     } finally {
       dispatch(setLoading(false));
     }
   };
 
   const getScoreColor = (score) => {
-    if (score >= 80) return 'text-green-600 bg-green-100';
-    if (score >= 60) return 'text-yellow-600 bg-yellow-100';
-    return 'text-red-600 bg-red-100';
+    if (score >= 80) return { bg: 'bg-emerald-100', text: 'text-emerald-600', bar: 'bg-emerald-500' };
+    if (score >= 60) return { bg: 'bg-amber-100', text: 'text-amber-600', bar: 'bg-amber-500' };
+    return { bg: 'bg-rose-100', text: 'text-rose-600', bar: 'bg-rose-500' };
   };
 
   const getScoreLabel = (score) => {
@@ -78,21 +76,36 @@ const ProductEvaluation = () => {
     return 'Poor Fit';
   };
 
+  const scoreColor = productEvaluation ? getScoreColor(productEvaluation.fitScore) : { bg: 'bg-slate-100', text: 'text-slate-600', bar: 'bg-slate-500' };
+
   return (
-    <div className="min-h-screen bg-gray-50 py-8">
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-slate-50">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Header */}
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900">Product Evaluation</h1>
-          <p className="mt-2 text-gray-600">Get AI-powered insights on skincare products</p>
+          <div className="flex items-center space-x-3 mb-3">
+            <div className="p-2 bg-purple-100 rounded-lg">
+              <Sparkles className="w-6 h-6 text-purple-600" />
+            </div>
+            <h1 className="text-3xl font-bold text-slate-900">Product Evaluation</h1>
+          </div>
+          <p className="text-slate-600 text-lg">Get AI-powered insights on skincare products tailored to your needs</p>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          <div className="bg-white p-6 rounded-lg shadow">
-            <h2 className="text-xl font-semibold text-gray-900 mb-6">Evaluate a Product</h2>
+          {/* Evaluation Form */}
+          <div className="bg-white rounded-2xl p-8 border-2 border-slate-200">
+            <div className="flex items-center space-x-3 mb-6">
+              <div className="p-2 bg-blue-100 rounded-lg">
+                <Target className="w-5 h-5 text-blue-600" />
+              </div>
+              <h2 className="text-xl font-bold text-slate-900">Evaluate a Product</h2>
+            </div>
             
-            <form onSubmit={handleSubmit} className="space-y-6">
+            <div className="space-y-6">
+              {/* Product Name */}
               <div>
-                <label htmlFor="productName" className="block text-sm font-medium text-gray-700 mb-2">
+                <label htmlFor="productName" className="block text-sm font-bold text-slate-900 mb-2 uppercase tracking-wide">
                   Product Name *
                 </label>
                 <input
@@ -100,21 +113,21 @@ const ProductEvaluation = () => {
                   id="productName"
                   value={formData.productName}
                   onChange={(e) => setFormData({ ...formData, productName: e.target.value })}
-                  className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                  className="block w-full px-4 py-3 border-2 border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                   placeholder="e.g., CeraVe Foaming Cleanser"
-                  required
                 />
               </div>
 
+              {/* Skin Goal */}
               <div>
-                <label htmlFor="goal" className="block text-sm font-medium text-gray-700 mb-2">
+                <label htmlFor="goal" className="block text-sm font-bold text-slate-900 mb-2 uppercase tracking-wide">
                   Your Skin Goal
                 </label>
                 <select
                   id="goal"
                   value={formData.goal}
                   onChange={(e) => setFormData({ ...formData, goal: e.target.value })}
-                  className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                  className="block w-full px-4 py-3 border-2 border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all appearance-none bg-white cursor-pointer"
                 >
                   <option value="">Select goal</option>
                   {goals.map((goal) => (
@@ -125,15 +138,16 @@ const ProductEvaluation = () => {
                 </select>
               </div>
 
+              {/* Skin Type */}
               <div>
-                <label htmlFor="skinType" className="block text-sm font-medium text-gray-700 mb-2">
+                <label htmlFor="skinType" className="block text-sm font-bold text-slate-900 mb-2 uppercase tracking-wide">
                   Skin Type
                 </label>
                 <select
                   id="skinType"
                   value={formData.skinType}
                   onChange={(e) => setFormData({ ...formData, skinType: e.target.value })}
-                  className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                  className="block w-full px-4 py-3 border-2 border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all appearance-none bg-white cursor-pointer"
                 >
                   <option value="">Select skin type</option>
                   {skinTypes.map((type) => (
@@ -144,15 +158,16 @@ const ProductEvaluation = () => {
                 </select>
               </div>
 
+              {/* Sensitivity Level */}
               <div>
-                <label htmlFor="sensitivity" className="block text-sm font-medium text-gray-700 mb-2">
+                <label htmlFor="sensitivity" className="block text-sm font-bold text-slate-900 mb-2 uppercase tracking-wide">
                   Sensitivity Level
                 </label>
                 <select
                   id="sensitivity"
                   value={formData.sensitivity}
                   onChange={(e) => setFormData({ ...formData, sensitivity: e.target.value })}
-                  className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                  className="block w-full px-4 py-3 border-2 border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all appearance-none bg-white cursor-pointer"
                 >
                   {sensitivityLevels.map((level) => (
                     <option key={level.value} value={level.value}>
@@ -162,50 +177,99 @@ const ProductEvaluation = () => {
                 </select>
               </div>
 
+              {/* Submit Button */}
               <button
-                type="submit"
+                onClick={handleSubmit}
                 disabled={loading || !formData.productName}
-                className="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full bg-blue-600 text-white py-4 px-6 rounded-xl font-semibold hover:bg-blue-700 disabled:bg-slate-300 disabled:cursor-not-allowed transition-all duration-200 flex items-center justify-center space-x-2"
               >
-                {loading ? 'Analyzing...' : 'Evaluate Product'}
+                {loading ? (
+                  <span>Analyzing...</span>
+                ) : (
+                  <>
+                    <span>Evaluate Product</span>
+                    <ChevronRight className="w-5 h-5" />
+                  </>
+                )}
               </button>
-            </form>
+            </div>
           </div>
 
-          <div className="bg-white p-6 rounded-lg shadow">
-            <h2 className="text-xl font-semibold text-gray-900 mb-6">Evaluation Results</h2>
+          {/* Results Section */}
+          <div className="bg-white rounded-2xl p-8 border-2 border-slate-200">
+            <div className="flex items-center space-x-3 mb-6">
+              <div className="p-2 bg-cyan-100 rounded-lg">
+                <Award className="w-5 h-5 text-cyan-600" />
+              </div>
+              <h2 className="text-xl font-bold text-slate-900">Evaluation Results</h2>
+            </div>
             
             {!productEvaluation ? (
-              <div className="text-center py-8">
-                <div className="text-gray-400 mb-4">
-                  <svg className="mx-auto h-12 w-12" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
-                  </svg>
+              <div className="text-center py-12">
+                <div className="inline-flex p-4 bg-slate-100 rounded-full mb-4">
+                  <Sparkles className="w-12 h-12 text-slate-400" />
                 </div>
-                <p className="text-gray-600">Enter a product name and click "Evaluate Product" to see AI-powered insights.</p>
+                <p className="text-slate-600 max-w-sm mx-auto leading-relaxed">
+                  Enter a product name and click "Evaluate Product" to see AI-powered insights.
+                </p>
               </div>
             ) : (
               <div className="space-y-6">
+                {/* Score Display */}
                 <div className="text-center">
-                  <div className={`inline-flex items-center justify-center w-20 h-20 rounded-full ${getScoreColor(productEvaluation.fitScore)}`}>
-                    <span className="text-2xl font-bold">{productEvaluation.fitScore}</span>
+                  <div className={`inline-flex items-center justify-center w-24 h-24 rounded-full ${scoreColor.bg} mb-3`}>
+                    <span className={`text-3xl font-bold ${scoreColor.text}`}>
+                      {productEvaluation.fitScore}
+                    </span>
                   </div>
-                  <p className="mt-2 text-lg font-medium text-gray-900">
-                    {getScoreLabel(productEvaluation.fitScore)}
-                  </p>
+                  <div className="space-y-1">
+                    <p className="text-xl font-bold text-slate-900">
+                      {getScoreLabel(productEvaluation.fitScore)}
+                    </p>
+                    <p className="text-sm text-slate-500">Compatibility Score</p>
+                  </div>
                 </div>
 
-                <div className="bg-gray-50 p-4 rounded-lg">
-                  <h3 className="font-medium text-gray-900 mb-2">AI Analysis</h3>
-                  <p className="text-gray-700 leading-relaxed">
-                    {productEvaluation.insightMessage}
-                  </p>
+                {/* Score Breakdown */}
+                <div className="bg-slate-50 rounded-xl p-4 border border-slate-200">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-sm font-semibold text-slate-600 uppercase tracking-wide">Score Breakdown</span>
+                    <span className="text-sm font-bold text-slate-900">{productEvaluation.fitScore}/100</span>
+                  </div>
+                  <div className="w-full h-3 bg-slate-200 rounded-full overflow-hidden">
+                    <div 
+                      className={`h-3 ${scoreColor.bar} rounded-full transition-all duration-500`}
+                      style={{ width: `${productEvaluation.fitScore}%` }}
+                    />
+                  </div>
                 </div>
 
-                <div className="border-t pt-4">
-                  <p className="text-sm text-gray-500">
-                    <strong>Disclaimer:</strong> This evaluation is based on AI analysis and should not replace professional dermatological advice. Results may vary based on individual factors.
-                  </p>
+                {/* AI Analysis */}
+                <div className="bg-cyan-50 rounded-xl p-5 border-2 border-cyan-200">
+                  <div className="flex items-start space-x-3">
+                    <div className="p-1.5 bg-cyan-200 rounded-lg flex-shrink-0">
+                      <Sparkles className="w-4 h-4 text-cyan-700" />
+                    </div>
+                    <div className="flex-1">
+                      <h3 className="text-sm font-bold text-cyan-900 mb-2 uppercase tracking-wide">AI Analysis</h3>
+                      <div className="text-sm text-cyan-800 leading-relaxed whitespace-pre-wrap font-medium">
+                        {productEvaluation.insightMessage}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Disclaimer */}
+                <div className="bg-amber-50 rounded-xl p-4 border border-amber-200">
+                  <div className="flex items-start space-x-3">
+                    <AlertCircle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+                    <div>
+                      <p className="text-xs font-semibold text-amber-900 mb-1 uppercase tracking-wide">Disclaimer</p>
+                      <p className="text-sm text-amber-800 leading-relaxed">
+                        This evaluation is based on AI analysis and should not replace professional dermatological advice. Results may vary based on individual factors.
+                      </p>
+                    </div>
+                  </div>
                 </div>
               </div>
             )}

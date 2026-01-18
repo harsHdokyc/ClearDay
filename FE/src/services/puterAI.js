@@ -83,7 +83,7 @@ class PuterAIService {
   // Progress analysis for skincare
   async analyzeProgress(userProfile, recentLogs, photoUrl) {
     const prompt = `
-      Analyze this skincare progress data and provide insights in JSON format:
+      Analyze this skincare progress data and the provided photo to give accurate insights in JSON format:
       
       User Profile:
       - Skin Goal: ${userProfile.skinGoal}
@@ -91,13 +91,21 @@ class PuterAIService {
       - Days Tracked: ${userProfile.totalDaysTracked || 0}
       - Recent Progress: ${recentLogs.length} days of data
       
-      Photo Analysis: Based on the provided photo URL, analyze skin condition trends.
+      Photo Analysis: Based on the provided photo URL ${photoUrl}, analyze the actual skin condition visible in the photo. Look for:
+      - Acne/breakouts severity
+      - Redness/inflammation
+      - Skin texture and clarity
+      - Overall skin condition
+      
+      Recent Data: ${JSON.stringify(recentLogs.slice(0, 3))}
+      
+      Compare the current photo with recent trends and provide an accurate assessment.
       
       Return JSON with this exact structure:
       {
         "acneTrend": "increasing|decreasing|stable|mild|severe",
         "rednessTrend": "increasing|decreasing|stable|mild|severe", 
-        "insightMessage": "Brief personalized insight (2-3 sentences)"
+        "insightMessage": "Brief personalized insight (2-3 sentences) based on actual photo analysis"
       }
     `;
 
@@ -128,19 +136,78 @@ class PuterAIService {
   // Product evaluation for skincare
   async evaluateProduct(productName, goal, skinType, sensitivity) {
     const prompt = `
-      Evaluate this skincare product for the user and provide insights in JSON format:
+      You are a Senior Dermatology Research AI.
+
+      Your job is to provide deeply researched, evidence-based, unbiased evaluations of skincare, haircare, and dermatology products, treatments, and routines.
+
+      You do NOT behave like a chatbot or influencer.
+      You behave like a medical researcher, clinical dermatologist, and investigative analyst combined.
+
+      Your mission is to protect the user from:
+      - ineffective products
+      - skin or hair damage
+      - marketing hype
+      - false or misleading claims
+
+      CORE BEHAVIOR
+      For every product or treatment, you must:
+      1. Determine real-world effectiveness
+      2. Identify safety risks
+      3. Detect hype vs reality
+      4. Find success and failure patterns
+      5. Explain which skin or hair types benefit or suffer
+
+      You always think in long-term outcomes (weeks and months, not days).
+
+      MANDATORY SOURCES
+      You must investigate and cross-verify information from:
+      - Reddit (real user experiences, side effects, long-term use)
+      - YouTube (dermatologists, cosmetic chemists, reviewers)
+      - Product review platforms (Amazon, G2, Trustpilot, Flipkart, etc.)
+      - Brand websites (ingredients, claims, clinical trials)
+      - Dermatology or medical sources (ingredient safety & efficacy)
+      - Before/after and community reports
+
+      No single source is trusted alone.
+      Patterns across sources matter more than individual opinions.
+
+      HOW YOU ANALYZE
+      For every claim, you must ask:
+      - Is this repeated across multiple independent sources?
+      - Is this marketing language or real outcome?
+      - Is there scientific support for the ingredient?
+      - What negative outcomes are reported?
+      - Who does this NOT work for?
+
+      You actively look for:
+      - irritation
+      - breakouts
+      - hair fall
+      - dryness
+      - worsening conditions
+      - fake or manipulated reviews
+
+      Product to Evaluate: ${productName}
+      User Profile:
+      - Goal: ${goal}
+      - Skin Type: ${skinType}
+      - Sensitivity: ${sensitivity || 'normal'}
+
+      REQUIRED OUTPUT FORMAT
+      Return a JSON object with exactly two fields: "fitScore" (0-100 number) and "insightMessage" (string).
       
-      Product: ${productName}
-      User Goal: ${goal}
-      Skin Type: ${skinType}
-      Sensitivity: ${sensitivity || 'normal'}
-      
-      Based on real-world user feedback and product characteristics, evaluate:
-      
-      Return JSON with this exact structure:
+      The "insightMessage" field MUST contain ONLY the Final Dermatologist Verdict section. 
+      Do not include any markdown formatting, asterisks, hyphens, or section headers.
+      Provide a concise summary that includes:
+      - Clear verdict (Worth it/Not worth it/Only for specific cases)
+      - Key justification in 2-3 sentences
+      - Fit score reasoning
+      - Clean, dry text without any formatting
+
+      Return JSON structure:
       {
-        "fitScore": number (0-100),
-        "insightMessage": "Brief evaluation with pros/cons (2-3 sentences)"
+        "fitScore": number,
+        "insightMessage": "Clean concise verdict text here..."
       }
     `;
 
@@ -153,9 +220,14 @@ class PuterAIService {
         parsed = JSON.parse(response);
       } catch (parseError) {
         // If JSON parsing fails, try to extract JSON from the response
-        const jsonMatch = response.match(/\{[^}]+\}/);
+        // Use a more robust regex that captures the outermost braces
+        const jsonMatch = response.match(/\{[\s\S]*\}/);
         if (jsonMatch) {
-          parsed = JSON.parse(jsonMatch[0]);
+          try {
+            parsed = JSON.parse(jsonMatch[0]);
+          } catch (e) {
+             throw new Error('Could not parse extracted JSON');
+          }
         } else {
           throw new Error('Could not extract valid JSON from response');
         }

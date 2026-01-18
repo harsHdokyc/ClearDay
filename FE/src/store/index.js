@@ -3,6 +3,7 @@ import authSlice from './slices/authSlice.js';
 import userSlice from './slices/userSlice.js';
 import dailySlice from './slices/dailySlice.js';
 import aiSlice from './slices/aiSlice.js';
+import gamificationSlice from './slices/gamificationSlice.js';
 
 export const store = configureStore({
   reducer: {
@@ -10,6 +11,7 @@ export const store = configureStore({
     user: userSlice,
     daily: dailySlice,
     ai: aiSlice,
+    gamification: gamificationSlice,
   },
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware({

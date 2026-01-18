@@ -9,10 +9,18 @@ const api = axios.create({
   },
 });
 
-api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('clerk-db-jwt');
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
+// Add Clerk auth token to requests
+api.interceptors.request.use(async (config) => {
+  try {
+    // Get the current user's session token from Clerk
+    if (window.Clerk && window.Clerk.session) {
+      const token = await window.Clerk.session.getToken();
+      if (token) {
+        config.headers.Authorization = `Bearer ${token}`;
+      }
+    }
+  } catch (error) {
+    console.warn('Failed to get auth token:', error);
   }
   return config;
 });
@@ -28,6 +36,7 @@ api.interceptors.response.use(
 export const userAPI = {
   createProfile: (userData) => api.post('/user/profile', userData),
   getProfile: (clerkId) => api.get(`/user/profile/${clerkId}`),
+  updateCustomRoutineSteps: (customRoutineSteps, routineOrder) => api.put('/user/profile/routine-steps', { customRoutineSteps, routineOrder }),
 };
 
 export const dailyAPI = {
@@ -35,8 +44,18 @@ export const dailyAPI = {
     headers: { 'Content-Type': 'multipart/form-data' }
   }),
   completeRoutine: (date) => api.post('/daily/complete-routine', { date }),
+  completeRoutineSteps: (date, steps) => api.post('/daily/complete-steps', { date, steps }),
   getStatus: () => api.get('/daily/status'),
   getHistory: () => api.get('/daily/history'),
+};
+
+export const gamificationAPI = {
+  updateMilestones: () => api.post('/gamification/milestones'),
+  getStatus: () => api.get('/gamification/status'),
+  completeGesture: (gestureType, milestoneTriggered) => api.post('/gamification/complete-gesture', {
+    gestureType,
+    milestoneTriggered
+  }),
 };
 
 export const aiAPI = {

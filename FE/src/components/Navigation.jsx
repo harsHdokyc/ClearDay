@@ -1,103 +1,124 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { UserButton } from '@clerk/clerk-react';
+import { LayoutDashboard, History, Sparkles, Menu, X } from 'lucide-react';
 
 const Navigation = () => {
   const location = useLocation();
+  const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false);
 
   const isActive = (path) => {
     return location.pathname === path;
   };
 
+  const navItems = [
+    { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+    { path: '/history', label: 'History', icon: History },
+    { path: '/product-evaluation', label: 'Product Evaluation', icon: Sparkles },
+  ];
+
   return (
-    <nav className="bg-white shadow-sm border-b">
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+    <nav className="bg-white border-b-2 border-slate-200 sticky top-0 z-50">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between h-16">
-          <div className="flex">
-            <div className="flex-shrink-0 flex items-center">
-              <Link to="/dashboard" className="text-xl font-bold text-blue-600">
-                ClearDay
-              </Link>
-            </div>
-            
-            <div className="hidden sm:ml-6 sm:flex sm:space-x-8">
-              <Link
-                to="/dashboard"
-                className={`inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium ${
-                  isActive('/dashboard')
-                    ? 'border-blue-500 text-gray-900'
-                    : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'
-                }`}
-              >
-                Dashboard
-              </Link>
-              
-              <Link
-                to="/history"
-                className={`inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium ${
-                  isActive('/history')
-                    ? 'border-blue-500 text-gray-900'
-                    : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'
-                }`}
-              >
-                History
-              </Link>
-              
-              <Link
-                to="/product-evaluation"
-                className={`inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium ${
-                  isActive('/product-evaluation')
-                    ? 'border-blue-500 text-gray-900'
-                    : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'
-                }`}
-              >
-                Product Evaluation
-              </Link>
-            </div>
+          {/* Logo */}
+          <div className="flex-shrink-0 flex items-center">
+            <Link to="/dashboard" className="flex items-center space-x-2 group">
+              <div className="p-1.5 bg-blue-100 rounded-lg group-hover:bg-blue-200 transition-colors">
+                <Sparkles className="w-5 h-5 text-blue-600" />
+              </div>
+              <span className="text-xl font-bold text-slate-900">ClearDay</span>
+            </Link>
           </div>
           
-          <div className="flex items-center">
-            <UserButton afterSignOutUrl="/sign-in" />
+          {/* Desktop Navigation */}
+          <div className="hidden md:flex md:space-x-2 items-center">
+            {navItems.map((item) => {
+              const Icon = item.icon;
+              return (
+                <Link
+                  key={item.path}
+                  to={item.path}
+                  className={`inline-flex items-center space-x-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all duration-200 ${
+                    isActive(item.path)
+                      ? 'bg-violet-100 text-violet-900'
+                      : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                  }`}
+                >
+                  <Icon className="w-4 h-4" />
+                  <span>{item.label}</span>
+                </Link>
+              );
+            })}
+          </div>
+
+          {/* Right Side */}
+          <div className="flex items-center space-x-4">
+            <div className="hidden md:block">
+              <UserButton 
+                afterSignOutUrl="/sign-in"
+                appearance={{
+                  elements: {
+                    avatarBox: "w-9 h-9 rounded-xl border-2 border-slate-200 hover:border-blue-500 transition-colors"
+                  }
+                }}
+              />
+            </div>
+            
+            {/* Mobile menu button */}
+            <button
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              className="md:hidden p-2 rounded-xl text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-colors"
+            >
+              {mobileMenuOpen ? (
+                <X className="w-6 h-6" />
+              ) : (
+                <Menu className="w-6 h-6" />
+              )}
+            </button>
           </div>
         </div>
         
-        {/* Mobile navigation */}
-        <div className="sm:hidden">
-          <div className="pt-2 pb-3 space-y-1">
-            <Link
-              to="/dashboard"
-              className={`block pl-3 pr-4 py-2 border-l-4 text-base font-medium ${
-                isActive('/dashboard')
-                  ? 'bg-blue-50 border-blue-500 text-blue-700'
-                  : 'border-transparent text-gray-600 hover:bg-gray-50 hover:border-gray-300 hover:text-gray-800'
-              }`}
-            >
-              Dashboard
-            </Link>
-            
-            <Link
-              to="/history"
-              className={`block pl-3 pr-4 py-2 border-l-4 text-base font-medium ${
-                isActive('/history')
-                  ? 'bg-blue-50 border-blue-500 text-blue-700'
-                  : 'border-transparent text-gray-600 hover:bg-gray-50 hover:border-gray-300 hover:text-gray-800'
-              }`}
-            >
-              History
-            </Link>
-            
-            <Link
-              to="/product-evaluation"
-              className={`block pl-3 pr-4 py-2 border-l-4 text-base font-medium ${
-                isActive('/product-evaluation')
-                  ? 'bg-blue-50 border-blue-500 text-blue-700'
-                  : 'border-transparent text-gray-600 hover:bg-gray-50 hover:border-gray-300 hover:text-gray-800'
-              }`}
-            >
-              Product Evaluation
-            </Link>
+        {/* Mobile Navigation */}
+        {mobileMenuOpen && (
+          <div className="md:hidden border-t-2 border-slate-200">
+            <div className="py-3 space-y-1">
+              {navItems.map((item) => {
+                const Icon = item.icon;
+                return (
+                  <Link
+                    key={item.path}
+                    to={item.path}
+                    onClick={() => setMobileMenuOpen(false)}
+                    className={`flex items-center space-x-3 px-4 py-3 rounded-xl text-base font-semibold transition-all duration-200 ${
+                      isActive(item.path)
+                        ? 'bg-violet-100 text-violet-900'
+                        : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                    }`}
+                  >
+                    <Icon className="w-5 h-5" />
+                    <span>{item.label}</span>
+                  </Link>
+                );
+              })}
+              
+              {/* Mobile User Button */}
+              <div className="pt-4 px-4 border-t-2 border-slate-200 mt-4">
+                <div className="flex items-center space-x-3">
+                  <UserButton 
+                    afterSignOutUrl="/sign-in"
+                    appearance={{
+                      elements: {
+                        avatarBox: "w-10 h-10 rounded-xl border-2 border-slate-200"
+                      }
+                    }}
+                  />
+                  <span className="text-sm font-medium text-slate-600">Account Settings</span>
+                </div>
+              </div>
+            </div>
           </div>
-        </div>
+        )}
       </div>
     </nav>
   );
