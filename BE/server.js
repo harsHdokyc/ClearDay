@@ -63,6 +63,22 @@ mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/clearday'
     logger.error('[SERVER] MongoDB connection error', err);
   });
 
+// Root endpoint - for health checks and API info
+app.get('/', (req, res) => {
+  res.json({ 
+    status: 'OK', 
+    message: 'ClearDay API is running',
+    version: '1.0.0',
+    endpoints: {
+      health: '/health',
+      user: '/api/user',
+      daily: '/api/daily',
+      ai: '/api/ai',
+      gamification: '/api/gamification'
+    }
+  });
+});
+
 app.use('/api/user', userRoutes);
 app.use('/api/daily', dailyRoutes);
 app.use('/api/ai', aiRoutes);
