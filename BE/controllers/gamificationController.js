@@ -1,6 +1,7 @@
 import Milestone from '../models/Milestone.js';
 import Analytics from '../models/Analytics.js';
 import { calculateStreak } from '../utils/streakCalculator.js';
+import logger from '../utils/logger.js';
 
 class GamificationController {
   // Check and update milestones based on streak
@@ -8,6 +9,7 @@ class GamificationController {
     try {
       const auth = req.auth();
       if (!auth || !auth.userId) {
+        logger.warn('[UPDATE_MILESTONES] Unauthorized - missing auth', {});
         return res.status(401).json({ 
           error: 'Unauthorized',
           message: 'User authentication required'
@@ -19,6 +21,7 @@ class GamificationController {
       // Get current analytics
       const analytics = await Analytics.findOne({ userId });
       if (!analytics) {
+        logger.warn('[UPDATE_MILESTONES] User analytics not found', { userId });
         return res.status(404).json({ 
           error: 'Not Found',
           message: 'User analytics not found'
@@ -54,6 +57,7 @@ class GamificationController {
           days: 3,
           message: 'You\'ve built proof of commitment! Your consistency is showing.'
         });
+        logger.info('[UPDATE_MILESTONES] Milestone unlocked: Proof Builder', { userId, streak: currentStreak });
       }
       
       // 7 days - Consistency Mode
@@ -65,6 +69,7 @@ class GamificationController {
           days: 7,
           message: 'One week of dedication! You\'re in consistency mode.'
         });
+        logger.info('[UPDATE_MILESTONES] Milestone unlocked: Consistency Mode', { userId, streak: currentStreak });
       }
       
       // 14 days - Identity Lock
@@ -76,6 +81,7 @@ class GamificationController {
           days: 14,
           message: 'Two weeks! Skincare is now part of your identity.'
         });
+        logger.info('[UPDATE_MILESTONES] Milestone unlocked: Identity Lock', { userId, streak: currentStreak });
       }
       
       // 30 days - Ritual Master
@@ -87,9 +93,18 @@ class GamificationController {
           days: 30,
           message: 'One month complete! You\'re a true ritual master.'
         });
+        logger.info('[UPDATE_MILESTONES] Milestone unlocked: Ritual Master', { userId, streak: currentStreak });
       }
       
       await milestone.save();
+      
+      logger.info('[UPDATE_MILESTONES] Milestones updated successfully', { 
+        userId, 
+        currentStreak,
+        previousStreak,
+        newlyUnlockedCount: newlyUnlocked.length,
+        streakIncreased: currentStreak > previousStreak 
+      });
       
       res.status(200).json({
         success: true,
@@ -100,6 +115,9 @@ class GamificationController {
         }
       });
     } catch (error) {
+      logger.error('[UPDATE_MILESTONES] Failed to update milestones', error, { 
+        userId: req.auth()?.userId 
+      });
       res.status(500).json({ 
         error: 'Internal Server Error',
         message: 'Failed to update milestones'
@@ -112,6 +130,7 @@ class GamificationController {
     try {
       const auth = req.auth();
       if (!auth || !auth.userId) {
+        logger.warn('[GET_GAMIFICATION_STATUS] Unauthorized - missing auth', {});
         return res.status(401).json({ 
           error: 'Unauthorized',
           message: 'User authentication required'
@@ -124,9 +143,11 @@ class GamificationController {
       
       if (!milestone) {
         // Create initial milestone record
+        logger.debug('[GET_GAMIFICATION_STATUS] Creating initial milestone record', { userId });
         const newMilestone = new Milestone({ userId });
         await newMilestone.save();
         
+        logger.info('[GET_GAMIFICATION_STATUS] Initial milestone created', { userId });
         return res.status(200).json({
           success: true,
           data: {
@@ -174,6 +195,28 @@ class GamificationController {
         };
       }
       
+      logger.info('[GET_GAMIFICATION_STATUS] Gamification status retrieved successfully', { 
+        userId,
+        currentStreak,
+        nextMilestone: nextMilestone?.name,
+        totalGesturesCompleted: milestone.totalGesturesCompleted
+      });
+      
+      // Update milestone's currentStreak if calculated streak is different
+      const oldStreak = milestone.currentStreak;
+      if (oldStreak !== currentStreak) {
+        milestone.currentStreak = currentStreak;
+        if (currentStreak > milestone.longestStreak) {
+          milestone.longestStreak = currentStreak;
+        }
+        await milestone.save();
+        logger.info('[GET_GAMIFICATION_STATUS] Updated milestone streak', { 
+          userId, 
+          oldStreak, 
+          newStreak: currentStreak 
+        });
+      }
+      
       res.status(200).json({
         success: true,
         data: {
@@ -184,6 +227,9 @@ class GamificationController {
         }
       });
     } catch (error) {
+      logger.error('[GET_GAMIFICATION_STATUS] Failed to fetch gamification status', error, { 
+        userId: req.auth()?.userId 
+      });
       res.status(500).json({ 
         error: 'Internal Server Error',
         message: 'Failed to fetch gamification status'
@@ -197,6 +243,7 @@ class GamificationController {
       const { gestureType, milestoneTriggered } = req.body;
       const auth = req.auth();
       if (!auth || !auth.userId) {
+        logger.warn('[COMPLETE_GESTURE] Unauthorized - missing auth', {});
         return res.status(401).json({ 
           error: 'Unauthorized',
           message: 'User authentication required'
@@ -206,6 +253,11 @@ class GamificationController {
       const userId = auth.userId;
       
       if (!gestureType || !milestoneTriggered) {
+        logger.warn('[COMPLETE_GESTURE] Missing required parameters', { 
+          userId, 
+          hasGestureType: !!gestureType,
+          hasMilestoneTriggered: !!milestoneTriggered 
+        });
         return res.status(400).json({ 
           error: 'Bad Request',
           message: 'Gesture type and milestone triggered are required'
@@ -214,6 +266,7 @@ class GamificationController {
       
       const milestone = await Milestone.findOne({ userId });
       if (!milestone) {
+        logger.warn('[COMPLETE_GESTURE] Milestone record not found', { userId });
         return res.status(404).json({ 
           error: 'Not Found',
           message: 'Milestone record not found'
@@ -226,6 +279,11 @@ class GamificationController {
       );
       
       if (existingGesture && existingGesture.completed) {
+        logger.warn('[COMPLETE_GESTURE] Gesture already completed', { 
+          userId, 
+          gestureType, 
+          milestoneTriggered 
+        });
         return res.status(400).json({ 
           error: 'Bad Request',
           message: 'This gesture has already been completed'
@@ -236,6 +294,7 @@ class GamificationController {
       if (existingGesture) {
         existingGesture.completed = true;
         existingGesture.completedAt = new Date();
+        logger.debug('[COMPLETE_GESTURE] Updating existing gesture', { userId, gestureType });
       } else {
         milestone.realWorldGestures.push({
           type: gestureType,
@@ -243,6 +302,7 @@ class GamificationController {
           completedAt: new Date(),
           milestoneTriggered
         });
+        logger.debug('[COMPLETE_GESTURE] Adding new gesture', { userId, gestureType });
       }
       
       milestone.totalGesturesCompleted += 1;
@@ -250,6 +310,13 @@ class GamificationController {
       
       // Generate impact URL (in real implementation, this would integrate with actual APIs)
       const impactUrl = this.generateImpactUrl(gestureType);
+      
+      logger.info('[COMPLETE_GESTURE] Gesture completed successfully', { 
+        userId,
+        gestureType,
+        milestoneTriggered,
+        totalGesturesCompleted: milestone.totalGesturesCompleted 
+      });
       
       res.status(200).json({
         success: true,
@@ -265,6 +332,10 @@ class GamificationController {
         }
       });
     } catch (error) {
+      logger.error('[COMPLETE_GESTURE] Failed to complete gesture', error, { 
+        userId: req.auth()?.userId,
+        gestureType: req.body.gestureType 
+      });
       res.status(500).json({ 
         error: 'Internal Server Error',
         message: 'Failed to complete gesture'

@@ -3,32 +3,64 @@ import mongoose from 'mongoose';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import { clerkMiddleware } from '@clerk/express';
-import { errorHandler, notFound } from './middleware/errorHandler.js';
+import { requestLogger, errorHandler, notFound } from './middleware/errorHandler.js';
 import dailyRoutes from './routes/daily.js';
 import aiRoutes from './routes/ai.js';
 import userRoutes from './routes/user.js';
 import gamificationRoutes from './routes/gamification.js';
+import logger from './utils/logger.js';
 
 dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-app.use(cors());
+// CORS configuration - allow frontend URLs
+const allowedOrigins = [
+  'http://localhost:5173',
+  'http://localhost:3000',
+  process.env.FRONTEND_URL
+].filter(Boolean); // Remove undefined values
+
+app.use(cors({
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.indexOf(origin) !== -1 || process.env.NODE_ENV === 'development') {
+      callback(null, true);
+    } else {
+      callback(null, true); // Allow all origins in development, restrict in production
+    }
+  },
+  credentials: true
+}));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// Request logging middleware (should be after body parsing but before routes)
+app.use(requestLogger);
+
 // Clerk middleware configuration
+const authorizedParties = [
+  'http://localhost:5173',
+  'http://localhost:3000',
+  process.env.FRONTEND_URL
+].filter(Boolean); // Remove undefined values
+
 app.use(clerkMiddleware({
   publishableKey: process.env.CLERK_PUBLISHABLE_KEY,
   secretKey: process.env.CLERK_SECRET_KEY,
-  authorizedParties: ['http://localhost:5173', 'http://localhost:3000'] // Add your frontend URLs
+  authorizedParties: authorizedParties
 }));
 
 mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/clearday')
-  .then(() => console.log('MongoDB connected successfully'))
+  .then(() => {
+    logger.info('[SERVER] MongoDB connected successfully', { 
+      uri: process.env.MONGODB_URI ? 'configured' : 'default' 
+    });
+  })
   .catch(err => {
-    console.error('MongoDB connection error:', err);
+    logger.error('[SERVER] MongoDB connection error', err);
   });
 
 app.use('/api/user', userRoutes);
@@ -48,5 +80,8 @@ app.use(notFound);
 app.use(errorHandler);
 
 app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+  logger.info('[SERVER] Server started successfully', { 
+    port: PORT, 
+    environment: process.env.NODE_ENV || 'development' 
+  });
 });

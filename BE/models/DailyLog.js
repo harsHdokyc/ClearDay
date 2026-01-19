@@ -11,9 +11,27 @@ const dailyLogSchema = new mongoose.Schema({
     required: true,
     match: /^\d{4}-\d{2}-\d{2}$/
   },
+  // Support for single photo (backward compatibility) or multi-view photos
   photoUrl: {
     type: String,
-    required: true
+    required: false,
+    default: null
+  },
+  // Multi-view photo support
+  frontView: {
+    type: String,
+    required: false,
+    default: null
+  },
+  rightView: {
+    type: String,
+    required: false,
+    default: null
+  },
+  leftView: {
+    type: String,
+    required: false,
+    default: null
   },
   routineCompleted: {
     type: Boolean,

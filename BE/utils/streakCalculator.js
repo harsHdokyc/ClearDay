@@ -14,22 +14,28 @@ export async function calculateStreak(userId) {
     
     if (logs.length === 0) return 0;
     
+    // Get the most recent log date (accounting for timezone differences)
+    const mostRecentLog = logs[0];
+    const mostRecentDate = new Date(mostRecentLog.date);
+    mostRecentDate.setHours(0, 0, 0, 0);
+    
+    // Calculate today's date
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    const todayStr = today.toISOString().split('T')[0];
-    const yesterday = new Date(today);
-    yesterday.setDate(yesterday.getDate() - 1);
-    const yesterdayStr = yesterday.toISOString().split('T')[0];
     
-    // Find starting point (today or yesterday)
-    const startLog = logs.find(log => log.date === todayStr || log.date === yesterdayStr);
-    if (!startLog) return 0;
+    // Calculate days difference between most recent log and today
+    const daysDiffFromToday = Math.floor((today - mostRecentDate) / (1000 * 60 * 60 * 24));
+    
+    // Only count streak if the most recent log is within ±1 day (to account for timezone differences)
+    if (daysDiffFromToday < -1 || daysDiffFromToday > 1) {
+      return 0;
+    }
     
     let streak = 0;
-    let expectedDate = new Date(startLog.date);
+    let expectedDate = new Date(mostRecentLog.date);
     expectedDate.setHours(0, 0, 0, 0);
     
-    // Count consecutive days backwards
+    // Count consecutive days backwards from the most recent log
     for (const log of logs) {
       const logDate = new Date(log.date);
       logDate.setHours(0, 0, 0, 0);
@@ -43,7 +49,6 @@ export async function calculateStreak(userId) {
         // Gap found, streak broken
         break;
       }
-      // If daysDiff < 0, we're looking at future dates, skip
     }
     
     return streak;

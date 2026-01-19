@@ -2,13 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { useUser } from '@clerk/clerk-react';
 import { useDispatch, useSelector } from 'react-redux';
 import { setStatus, setTodayLog, setLoading } from '../store/slices/dailySlice.js';
-import { setProgressAnalysis, clearError } from '../store/slices/aiSlice.js';
 import { setGamificationStatus, updateMilestones, completeGesture, clearNewlyUnlocked } from '../store/slices/gamificationSlice.js';
 import { setProfile as setUserProfile } from '../store/slices/userSlice.js';
 import { dailyAPI, aiAPI, gamificationAPI, userAPI } from '../services/api.js';
 import puterAI from '../services/puterAI.js';
 import MilestoneCelebration from '../components/MilestoneCelebration.jsx';
-import { Camera, CheckCircle, Circle, Sparkles, TrendingUp, Calendar, Target, Award, Flame, ChevronRight, Upload, X, Plus, Trash2, GripVertical } from 'lucide-react';
+import { Camera, CheckCircle, Circle, Sparkles, TrendingUp, Calendar, Target, Award, Flame, Upload, X, Plus, Trash2, GripVertical } from 'lucide-react';
 import { useToast } from '../components/ui/use-toast.jsx';
 import {
   DndContext,
@@ -98,7 +97,6 @@ const Dashboard = () => {
   const dispatch = useDispatch();
   const { toast } = useToast();
   const { streak, skippedDays, datasetWarning, hasCompletedToday, hasUploadedToday, todayLog } = useSelector((state) => state.daily);
-  const { progressAnalysis } = useSelector((state) => state.ai);
   const { profile } = useSelector((state) => state.user);
   const { 
     currentStreak, 
@@ -145,21 +143,26 @@ const Dashboard = () => {
     loadCustomRoutineSteps();
   }, []);
 
-  // Initialize routine steps when order is loaded
+  // Initialize routine steps when order is loaded and restore saved state
   useEffect(() => {
     if (routineOrder.length > 0) {
       setRoutineSteps(prev => {
-        const newSteps = { ...prev };
-        // Add any new steps from order that don't exist yet
+        const newSteps = {};
+        // Initialize all steps from routineOrder
         routineOrder.forEach(step => {
-          if (!newSteps.hasOwnProperty(step)) {
+          // If we have saved data from todayLog, use it; otherwise use prev state or default to false
+          if (todayLog?.routineSteps && todayLog.routineSteps.hasOwnProperty(step)) {
+            newSteps[step] = todayLog.routineSteps[step];
+          } else if (prev.hasOwnProperty(step)) {
+            newSteps[step] = prev[step];
+          } else {
             newSteps[step] = false;
           }
         });
         return newSteps;
       });
     }
-  }, [routineOrder]);
+  }, [routineOrder, todayLog]);
 
   const loadCustomRoutineSteps = async () => {
     if (!user?.id) return;
@@ -206,36 +209,49 @@ const Dashboard = () => {
   };
 
   const handleAddCustomStep = () => {
-    if (!newCustomStep.trim()) {
+    try {
+      if (!newCustomStep.trim()) {
+        toast({
+          title: 'Validation Error',
+          description: 'Please enter a step name',
+          variant: 'destructive',
+          duration: 3000
+        });
+        return;
+      }
+
+      const stepKey = newCustomStep.trim().toLowerCase().replace(/\s+/g, '-');
+      
+      // Check if step already exists
+      if (defaultSteps.includes(stepKey) || customSteps.includes(stepKey)) {
+        toast({
+          title: 'Validation Error',
+          description: 'This step already exists',
+          variant: 'destructive',
+          duration: 3000
+        });
+        return;
+      }
+
+      // Ensure routineOrder is initialized
+      const currentOrder = routineOrder && routineOrder.length > 0 ? routineOrder : [...defaultSteps];
+      const updatedCustomSteps = [...customSteps, stepKey];
+      const updatedOrder = [...currentOrder, stepKey];
+      
+      setCustomSteps(updatedCustomSteps);
+      setRoutineOrder(updatedOrder);
+      setRoutineSteps(prev => ({ ...prev, [stepKey]: false }));
+      setNewCustomStep('');
+      saveCustomRoutineSteps(updatedCustomSteps, updatedOrder);
+    } catch (error) {
+      console.error('Error adding custom step:', error);
       toast({
-        title: 'Validation Error',
-        description: 'Please enter a step name',
+        title: 'Error',
+        description: 'Failed to add custom step. Please try again.',
         variant: 'destructive',
         duration: 3000
       });
-      return;
     }
-
-    const stepKey = newCustomStep.trim().toLowerCase().replace(/\s+/g, '-');
-    
-    // Check if step already exists
-    if (defaultSteps.includes(stepKey) || customSteps.includes(stepKey)) {
-      toast({
-        title: 'Validation Error',
-        description: 'This step already exists',
-        variant: 'destructive',
-        duration: 3000
-      });
-      return;
-    }
-
-    const updatedCustomSteps = [...customSteps, stepKey];
-    const updatedOrder = [...routineOrder, stepKey];
-    setCustomSteps(updatedCustomSteps);
-    setRoutineOrder(updatedOrder);
-    setRoutineSteps(prev => ({ ...prev, [stepKey]: false }));
-    setNewCustomStep('');
-    saveCustomRoutineSteps(updatedCustomSteps, updatedOrder);
   };
 
   const handleRemoveCustomStep = (stepKey) => {
@@ -367,6 +383,7 @@ const Dashboard = () => {
           const frontFormData = new FormData();
           frontFormData.append('photo', frontView);
           frontFormData.append('date', today);
+          frontFormData.append('view', 'front');
           frontResponse = await dailyAPI.uploadPhoto(frontFormData);
           uploadResults.push({ view: 'front', success: true, response: frontResponse });
         } catch (error) {
@@ -379,6 +396,7 @@ const Dashboard = () => {
           const rightFormData = new FormData();
           rightFormData.append('photo', rightView);
           rightFormData.append('date', today);
+          rightFormData.append('view', 'right');
           rightResponse = await dailyAPI.uploadPhoto(rightFormData);
           uploadResults.push({ view: 'right', success: true, response: rightResponse });
         } catch (error) {
@@ -391,6 +409,7 @@ const Dashboard = () => {
           const leftFormData = new FormData();
           leftFormData.append('photo', leftView);
           leftFormData.append('date', today);
+          leftFormData.append('view', 'left');
           leftResponse = await dailyAPI.uploadPhoto(leftFormData);
           uploadResults.push({ view: 'left', success: true, response: leftResponse });
         } catch (error) {
@@ -428,13 +447,40 @@ const Dashboard = () => {
         return;
       }
       
-      // Use the first successful response for dispatch
-      const successfulResponse = uploadResults.find(result => result.success)?.response;
-      if (successfulResponse) {
-        dispatch(setTodayLog(successfulResponse.data.data));
-        
-        if (profile) {
-          await generateProgressAnalysis(successfulResponse.data.data.photoUrl);
+      // Get the final response (should have all 3 views after all uploads)
+      const finalResponse = uploadResults.find(result => result.view === 'left' && result.success)?.response ||
+                           uploadResults.find(result => result.view === 'right' && result.success)?.response ||
+                           uploadResults.find(result => result.view === 'front' && result.success)?.response;
+      
+      if (finalResponse) {
+        // Fetch the latest log to ensure we have all 3 views
+        const today = new Date().toISOString().split('T')[0];
+        try {
+          const statusResponse = await dailyAPI.getStatus();
+          const latestLog = statusResponse.data.data.todayLog;
+          
+          if (latestLog) {
+            dispatch(setTodayLog(latestLog));
+            
+            // Generate AI analysis with all 3 views
+            if (profile) {
+              const photoUrls = {
+                front: latestLog.frontView || latestLog.photoUrl, // fallback to photoUrl for backward compatibility
+                right: latestLog.rightView,
+                left: latestLog.leftView
+              };
+              
+              // Only analyze if we have at least the front view
+              if (photoUrls.front) {
+                await generateProgressAnalysis(photoUrls);
+              }
+            }
+          } else {
+            dispatch(setTodayLog(finalResponse.data.data));
+          }
+        } catch (error) {
+          console.error('Failed to fetch latest log:', error);
+          dispatch(setTodayLog(finalResponse.data.data));
         }
         
         toast({
@@ -466,77 +512,73 @@ const Dashboard = () => {
     }
   };
 
-  const handleRoutineStepToggle = (step) => {
-    setRoutineSteps(prev => ({
-      ...prev,
-      [step]: !prev[step]
-    }));
-  };
+  const handleRoutineStepToggle = async (step) => {
+    // Update local state first for immediate UI feedback
+    const updatedSteps = {
+      ...routineSteps,
+      [step]: !routineSteps[step]
+    };
+    setRoutineSteps(updatedSteps);
 
-  const handleRoutineComplete = async () => {
-    const completedStepsCount = Object.values(routineSteps).filter(Boolean).length;
-    
-    if (completedStepsCount === 0) {
-      toast({
-        title: 'Validation Error',
-        description: 'Please complete at least one step!',
-        variant: 'destructive',
-        duration: 5000
-      });
-      return;
-    }
-
+    // Auto-save to backend
     try {
       const today = new Date().toISOString().split('T')[0];
-      const response = await dailyAPI.completeRoutineSteps(today, routineSteps);
+      const totalStepsCount = Object.keys(updatedSteps).length;
+      const completedStepsCount = Object.values(updatedSteps).filter(Boolean).length;
+      
+      const response = await dailyAPI.completeRoutineSteps(
+        today, 
+        updatedSteps, 
+        totalStepsCount, 
+        completedStepsCount
+      );
+      
       dispatch(setTodayLog(response.data.data));
-      fetchDailyStatus();
-      await checkMilestones();
       
-      // Reset all routine steps (only the ones currently in routineSteps)
-      const resetSteps = {};
-      Object.keys(routineSteps).forEach(step => {
-        resetSteps[step] = false;
-      });
-      setRoutineSteps(resetSteps);
-      
-      toast({
-        title: 'Success',
-        description: 'Routine completed successfully!',
-        variant: 'success',
-        duration: 3000
-      });
+      // Check milestones if routine is completed (100% - all steps)
+      const isRoutineCompleted = completedStepsCount === totalStepsCount && totalStepsCount > 0;
+      if (isRoutineCompleted) {
+        // Update milestones first, which will also refresh gamification status
+        await checkMilestones();
+        // Then refresh daily status to ensure everything is in sync
+        await fetchDailyStatus();
+      } else {
+        // If not fully completed, still refresh status to show current progress
+        await fetchDailyStatus();
+        await fetchGamificationStatus();
+      }
     } catch (error) {
+      console.error('Failed to save routine step:', error);
+      // Revert the toggle on error
+      setRoutineSteps(prev => ({
+        ...prev,
+        [step]: !prev[step]
+      }));
       toast({
         title: 'Error',
-        description: 'Failed to complete routine. Please try again.',
+        description: 'Failed to save routine step. Please try again.',
         variant: 'destructive',
-        duration: 5000
+        duration: 3000
       });
     }
   };
+
 
   const generateProgressAnalysis = async (photoUrl) => {
     try {
       const userDataResponse = await aiAPI.getUserData();
-      const { userProfile, recentLogs } = userDataResponse.data;
+      const responseData = userDataResponse.data?.data || userDataResponse.data;
+      const { userProfile, recentLogs } = responseData || {};
       
-      const analysis = await puterAI.analyzeProgress(
-        userProfile,
-        recentLogs,
-        photoUrl
-      );
+      if (!userProfile) {
+        throw new Error('Failed to retrieve user profile data');
+      }
       
-      dispatch(setProgressAnalysis(analysis));
+      const analysis = await puterAI.analyzeProgress(userProfile, recentLogs, photoUrl);
       await aiAPI.getProgressAnalysis({ analysis });
     } catch (error) {
-      toast({
-        title: 'Error',
-        description: 'Failed to generate progress analysis. Please try again.',
-        variant: 'destructive',
-        duration: 5000
-      });
-      dispatch(clearError());
+      console.error('Failed to generate progress analysis:', error);
+      // Silently fail - analysis will be generated on next upload
     }
   };
 
@@ -544,6 +586,7 @@ const Dashboard = () => {
     try {
       const response = await gamificationAPI.updateMilestones();
       dispatch(updateMilestones(response.data.data));
+      await fetchGamificationStatus();
     } catch (error) {
       toast({
         title: 'Error',
@@ -588,6 +631,11 @@ const Dashboard = () => {
   };
 
   const completedStepsCount = Object.values(routineSteps).filter(Boolean).length;
+  const totalStepsCount = Object.keys(routineSteps).length;
+  // Routine is only truly completed when ALL steps are done (100%)
+  const allStepsCompleted = totalStepsCount > 0 && completedStepsCount === totalStepsCount;
+  // Use both backend flag and frontend verification for safety
+  const isRoutineCompleted = hasCompletedToday && allStepsCompleted;
   const photosSelected = [frontView, rightView, leftView].filter(Boolean).length;
 
   return (
@@ -728,9 +776,19 @@ const Dashboard = () => {
                   <div className="space-y-2">
                     <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wide">Front</label>
                     <label htmlFor="front-upload" className="block cursor-pointer">
-                      <div className="h-32 border-2 border-dashed border-slate-300 rounded-xl flex flex-col items-center justify-center hover:border-blue-500 hover:bg-blue-50 transition-all">
-                        <Camera className="w-6 h-6 text-slate-400 mb-1" />
-                        <span className="text-xs text-slate-500">Upload</span>
+                      <div className="h-32 border-2 border-dashed border-slate-300 rounded-xl overflow-hidden relative hover:border-blue-500 transition-all">
+                        {frontPreview ? (
+                          <img 
+                            src={frontPreview} 
+                            alt="Front view preview" 
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <div className="h-full flex flex-col items-center justify-center">
+                            <Camera className="w-6 h-6 text-slate-400 mb-1" />
+                            <span className="text-xs text-slate-500">Upload</span>
+                          </div>
+                        )}
                       </div>
                       <input
                         id="front-upload"
@@ -746,9 +804,19 @@ const Dashboard = () => {
                   <div className="space-y-2">
                     <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wide">Right</label>
                     <label htmlFor="right-upload" className="block cursor-pointer">
-                      <div className="h-32 border-2 border-dashed border-slate-300 rounded-xl flex flex-col items-center justify-center hover:border-blue-500 hover:bg-blue-50 transition-all">
-                        <Camera className="w-6 h-6 text-slate-400 mb-1" />
-                        <span className="text-xs text-slate-500">Upload</span>
+                      <div className="h-32 border-2 border-dashed border-slate-300 rounded-xl overflow-hidden relative hover:border-blue-500 transition-all">
+                        {rightPreview ? (
+                          <img 
+                            src={rightPreview} 
+                            alt="Right view preview" 
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <div className="h-full flex flex-col items-center justify-center">
+                            <Camera className="w-6 h-6 text-slate-400 mb-1" />
+                            <span className="text-xs text-slate-500">Upload</span>
+                          </div>
+                        )}
                       </div>
                       <input
                         id="right-upload"
@@ -764,9 +832,19 @@ const Dashboard = () => {
                   <div className="space-y-2">
                     <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wide">Left</label>
                     <label htmlFor="left-upload" className="block cursor-pointer">
-                      <div className="h-32 border-2 border-dashed border-slate-300 rounded-xl flex flex-col items-center justify-center hover:border-blue-500 hover:bg-blue-50 transition-all">
-                        <Camera className="w-6 h-6 text-slate-400 mb-1" />
-                        <span className="text-xs text-slate-500">Upload</span>
+                      <div className="h-32 border-2 border-dashed border-slate-300 rounded-xl overflow-hidden relative hover:border-blue-500 transition-all">
+                        {leftPreview ? (
+                          <img 
+                            src={leftPreview} 
+                            alt="Left view preview" 
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <div className="h-full flex flex-col items-center justify-center">
+                            <Camera className="w-6 h-6 text-slate-400 mb-1" />
+                            <span className="text-xs text-slate-500">Upload</span>
+                          </div>
+                        )}
                       </div>
                       <input
                         id="left-upload"
@@ -827,7 +905,7 @@ const Dashboard = () => {
               </div>
             </div>
 
-            {!hasCompletedToday ? (
+            {!isRoutineCompleted ? (
               <div className="space-y-6">
                 <DndContext
                   sensors={sensors}
@@ -871,9 +949,15 @@ const Dashboard = () => {
                     className="flex-1 px-4 py-3 border-2 border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all"
                   />
                   <button
-                    onClick={handleAddCustomStep}
-                    className="p-3 bg-purple-600 text-white rounded-xl hover:bg-purple-700 transition-colors"
+                    type="button"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      handleAddCustomStep();
+                    }}
+                    className="p-3 bg-purple-600 text-white rounded-xl hover:bg-purple-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                     title="Add step"
+                    disabled={!newCustomStep.trim()}
                   >
                     <Plus className="w-5 h-5" />
                   </button>
@@ -891,17 +975,12 @@ const Dashboard = () => {
                       style={{ width: `${Object.keys(routineSteps).length > 0 ? (completedStepsCount / Object.keys(routineSteps).length) * 100 : 0}%` }}
                     />
                   </div>
+                  {completedStepsCount > 0 && (
+                    <p className="mt-2 text-xs text-slate-500 text-center">
+                      Progress auto-saved
+                    </p>
+                  )}
                 </div>
-
-                {/* Complete Button */}
-                <button
-                  onClick={handleRoutineComplete}
-                  disabled={completedStepsCount === 0}
-                  className="w-full bg-purple-600 text-white py-4 px-6 rounded-xl font-semibold hover:bg-purple-700 disabled:bg-slate-300 disabled:cursor-not-allowed transition-all duration-200 flex items-center justify-center space-x-2"
-                >
-                  <span>Complete Routine</span>
-                  <ChevronRight className="w-5 h-5" />
-                </button>
               </div>
             ) : (
               <div className="flex items-center justify-center py-12">
@@ -916,45 +995,6 @@ const Dashboard = () => {
             )}
           </div>
         </div>
-
-        {/* AI Insights - Full Width */}
-        {progressAnalysis && (
-          <div className="mt-8 bg-white rounded-2xl p-8 border-2 border-slate-200">
-            <div className="flex items-center space-x-3 mb-6">
-              <div className="p-2 bg-cyan-100 rounded-lg">
-                <Sparkles className="w-6 h-6 text-cyan-600" />
-              </div>
-              <div>
-                <h3 className="text-xl font-bold text-slate-900">AI-Powered Insights</h3>
-                <p className="text-sm text-slate-500">Your personalized skin analysis</p>
-              </div>
-            </div>
-            
-            <div className="bg-cyan-50 rounded-xl p-6 border border-cyan-200 mb-6">
-              <p className="text-slate-800 text-lg leading-relaxed">
-                {progressAnalysis.insightMessage}
-              </p>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="bg-slate-50 rounded-xl p-5 border border-slate-200">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm font-semibold text-slate-600 uppercase tracking-wide">Acne Trend</span>
-                  <TrendingUp className="w-5 h-5 text-emerald-600" />
-                </div>
-                <p className="text-2xl font-bold text-slate-900 capitalize">{progressAnalysis.acneTrend}</p>
-              </div>
-
-              <div className="bg-slate-50 rounded-xl p-5 border border-slate-200">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm font-semibold text-slate-600 uppercase tracking-wide">Redness</span>
-                  <TrendingUp className="w-5 h-5 text-emerald-600" />
-                </div>
-                <p className="text-2xl font-bold text-slate-900 capitalize">{progressAnalysis.rednessTrend}</p>
-              </div>
-            </div>
-          </div>
-        )}
       </div>
 
       {/* Milestone Celebration Modal */}

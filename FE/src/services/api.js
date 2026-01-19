@@ -44,7 +44,12 @@ export const dailyAPI = {
     headers: { 'Content-Type': 'multipart/form-data' }
   }),
   completeRoutine: (date) => api.post('/daily/complete-routine', { date }),
-  completeRoutineSteps: (date, steps) => api.post('/daily/complete-steps', { date, steps }),
+  completeRoutineSteps: (date, steps, totalStepsCount, completedStepsCount) => api.post('/daily/complete-steps', { 
+    date, 
+    steps, 
+    totalStepsCount, 
+    completedStepsCount 
+  }),
   getStatus: () => api.get('/daily/status'),
   getHistory: () => api.get('/daily/history'),
 };

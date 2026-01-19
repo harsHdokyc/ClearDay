@@ -22,14 +22,15 @@ const routineCompletionSchema = Joi.object({
 });
 
 // Routine steps validation (partial completion)
+// Allow any step keys since users can add custom routine steps
 const routineStepsSchema = Joi.object({
   date: Joi.string().pattern(/^\d{4}-\d{2}-\d{2}$/).required(),
-  steps: Joi.object({
-    cleanser: Joi.boolean().required(),
-    treatment: Joi.boolean().required(),
-    moisturizer: Joi.boolean().required(),
-    sunscreen: Joi.boolean().optional()
-  }).required()
+  steps: Joi.object().pattern(
+    Joi.string(), // Any string key (step name)
+    Joi.boolean() // Value must be boolean
+  ).required(),
+  totalStepsCount: Joi.number().integer().min(1).required(),
+  completedStepsCount: Joi.number().integer().min(0).required()
 });
 
 // AI analysis storage validation

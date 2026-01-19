@@ -1,10 +1,12 @@
 import React from 'react';
-import { Link, useLocation } from 'react-router-dom';
-import { UserButton } from '@clerk/clerk-react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { UserButton, useUser } from '@clerk/clerk-react';
 import { LayoutDashboard, History, Sparkles, Menu, X } from 'lucide-react';
 
 const Navigation = () => {
   const location = useLocation();
+  const navigate = useNavigate();
+  const { user } = useUser();
   const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false);
 
   const isActive = (path) => {
@@ -55,14 +57,25 @@ const Navigation = () => {
           {/* Right Side */}
           <div className="flex items-center space-x-4">
             <div className="hidden md:block">
-              <UserButton 
-                afterSignOutUrl="/sign-in"
-                appearance={{
-                  elements: {
-                    avatarBox: "w-9 h-9 rounded-xl border-2 border-slate-200 hover:border-blue-500 transition-colors"
-                  }
-                }}
-              />
+              <button
+                onClick={() => navigate('/profile')}
+                className="w-9 h-9 rounded-xl border-2 border-slate-200 hover:border-blue-500 transition-colors overflow-hidden focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                title="Profile"
+              >
+                {user?.imageUrl ? (
+                  <img
+                    src={user.imageUrl}
+                    alt={user.fullName || 'User'}
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <div className="w-full h-full bg-gradient-to-br from-violet-100 to-blue-100 flex items-center justify-center">
+                    <span className="text-sm font-semibold text-violet-600">
+                      {user?.firstName?.[0] || user?.primaryEmailAddress?.emailAddress?.[0]?.toUpperCase() || 'U'}
+                    </span>
+                  </div>
+                )}
+              </button>
             </div>
             
             {/* Mobile menu button */}
@@ -104,17 +117,28 @@ const Navigation = () => {
               
               {/* Mobile User Button */}
               <div className="pt-4 px-4 border-t-2 border-slate-200 mt-4">
-                <div className="flex items-center space-x-3">
-                  <UserButton 
-                    afterSignOutUrl="/sign-in"
-                    appearance={{
-                      elements: {
-                        avatarBox: "w-10 h-10 rounded-xl border-2 border-slate-200"
-                      }
-                    }}
-                  />
-                  <span className="text-sm font-medium text-slate-600">Account Settings</span>
-                </div>
+                <Link
+                  to="/profile"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="flex items-center space-x-3 px-4 py-3 rounded-xl text-base font-semibold transition-all duration-200 text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+                >
+                  <div className="w-10 h-10 rounded-xl border-2 border-slate-200 overflow-hidden">
+                    {user?.imageUrl ? (
+                      <img
+                        src={user.imageUrl}
+                        alt={user.fullName || 'User'}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <div className="w-full h-full bg-gradient-to-br from-violet-100 to-blue-100 flex items-center justify-center">
+                        <span className="text-sm font-semibold text-violet-600">
+                          {user?.firstName?.[0] || user?.primaryEmailAddress?.emailAddress?.[0]?.toUpperCase() || 'U'}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                  <span>Profile</span>
+                </Link>
               </div>
             </div>
           </div>

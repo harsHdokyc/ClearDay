@@ -7,11 +7,11 @@ const progressMetricSchema = new mongoose.Schema({
   },
   acneTrend: {
     type: String,
-    enum: ['increasing', 'decreasing', 'stable', 'mild', 'severe']
+    enum: ['increasing', 'decreasing', 'stable', 'mild', 'moderate', 'severe']
   },
   rednessTrend: {
     type: String,
-    enum: ['increasing', 'decreasing', 'stable', 'mild', 'severe']
+    enum: ['increasing', 'decreasing', 'stable', 'mild', 'moderate', 'severe']
   },
   insightMessage: {
     type: String,

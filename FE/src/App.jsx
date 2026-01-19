@@ -10,6 +10,7 @@ import Onboarding from './pages/Onboarding.jsx';
 import Dashboard from './pages/Dashboard.jsx';
 import History from './pages/History.jsx';
 import ProductEvaluation from './pages/ProductEvaluation.jsx';
+import Profile from './pages/Profile.jsx';
 import Navigation from './components/Navigation.jsx';
 import ProtectedRoute from './components/ProtectedRoute.jsx';
 import OnboardingRoute from './components/OnboardingRoute.jsx';
@@ -26,8 +27,17 @@ const ConditionalNavigation = () => {
 };
 
 function App() {
+  // Validate Clerk key
+  if (!clerkPubKey || clerkPubKey === 'pk_test_your-clerk-key-here') {
+    console.error('Clerk publishable key is not set. Please set VITE_CLERK_PUBLISHABLE_KEY environment variable.');
+  }
+
   return (
-    <ClerkProvider publishableKey={clerkPubKey}>
+    <ClerkProvider 
+      publishableKey={clerkPubKey}
+      afterSignInUrl="/dashboard"
+      afterSignUpUrl="/onboarding"
+    >
       <Provider store={store}>
         <QueryClientProvider client={queryClient}>
           <Router>
@@ -61,6 +71,14 @@ function App() {
                   element={
                     <ProtectedRoute>
                       <ProductEvaluation />
+                    </ProtectedRoute>
+                  } 
+                />
+                <Route 
+                  path="/profile" 
+                  element={
+                    <ProtectedRoute>
+                      <Profile />
                     </ProtectedRoute>
                   } 
                 />

@@ -2,11 +2,11 @@ import React, { useEffect } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { setHistory, setLoading } from '../store/slices/dailySlice.js';
 import { dailyAPI } from '../services/api.js';
-import { Calendar, CheckCircle, XCircle, TrendingUp, TrendingDown, Minus, Image, FileText, Activity, Sparkles } from 'lucide-react';
+import { Calendar, CheckCircle, XCircle, TrendingUp, TrendingDown, Minus, Image, FileText, Activity, Sparkles, AlertCircle } from 'lucide-react';
 
 const History = () => {
   const dispatch = useDispatch();
-  const { history, loading } = useSelector((state) => state.daily);
+  const { history, loading, analytics } = useSelector((state) => state.daily);
 
   useEffect(() => {
     fetchHistory();
@@ -16,7 +16,11 @@ const History = () => {
     try {
       dispatch(setLoading(true));
       const response = await dailyAPI.getHistory();
-      dispatch(setHistory(response.data.data.logs));
+      // Store both logs and analytics
+      dispatch(setHistory({
+        logs: response.data.data.logs,
+        analytics: response.data.data.analytics
+      }));
     } catch (error) {
       console.error('Failed to fetch history:', error);
     } finally {
@@ -71,6 +75,39 @@ const History = () => {
     if (level <= 3) return 'emerald';
     if (level <= 6) return 'amber';
     return 'rose';
+  };
+
+  const getDayInsight = (day) => {
+    // If there's an AI-generated insight, use it
+    if (day.progressMetrics && day.progressMetrics.length > 0) {
+      const metric = day.progressMetrics[0];
+      return metric.insightMessage || 'Keep tracking your progress - consistency leads to results!';
+    }
+    
+    // Otherwise, generate a simple insight based on skin analysis data
+    if (day.acneLevel !== null || day.rednessLevel !== null) {
+      const acneLevel = day.acneLevel ?? 0;
+      const rednessLevel = day.rednessLevel ?? 0;
+      
+      let skinCondition = '';
+      let motivation = '';
+      
+      if (acneLevel <= 3 && rednessLevel <= 3) {
+        skinCondition = 'Your skin is looking clear and calm.';
+        motivation = 'Keep up the great work with your routine!';
+      } else if (acneLevel <= 6 && rednessLevel <= 6) {
+        skinCondition = 'Your skin shows moderate activity with some areas needing attention.';
+        motivation = 'Consistency is key - you\'re on the right track!';
+      } else {
+        skinCondition = 'Your skin is showing some inflammation and may need extra care.';
+        motivation = 'Stay patient and trust the process - every day counts!';
+      }
+      
+      return `${skinCondition} ${motivation}`;
+    }
+    
+    // Default message if no analysis data
+    return 'Keep tracking your progress - consistency leads to results!';
   };
 
   if (loading) {
@@ -132,6 +169,25 @@ const History = () => {
           </div>
         )}
 
+        {/* Reset Indicator */}
+        {analytics?.isReset && analytics?.baselineDate && (
+          <div className="mb-6 bg-amber-50 border-2 border-amber-200 rounded-xl p-4">
+            <div className="flex items-start space-x-3">
+              <AlertCircle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+              <div className="flex-1">
+                <h4 className="text-sm font-bold text-amber-900 mb-1">Fresh Start</h4>
+                <p className="text-sm text-amber-800 leading-relaxed">
+                  Your analytics were reset on {new Date(analytics.baselineDate).toLocaleDateString('en-US', { 
+                    month: 'short', 
+                    day: 'numeric',
+                    year: 'numeric'
+                  })}. Insights shown below are from your fresh start. Your photos are preserved, but AI insights begin fresh from this date.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Timeline */}
         {history.length === 0 ? (
           <div className="bg-white rounded-2xl border-2 border-slate-200 p-12 text-center">
@@ -150,26 +206,85 @@ const History = () => {
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 p-6">
                   {/* Photo Section */}
                   <div className="lg:col-span-1">
-                    <div className="relative rounded-xl overflow-hidden border-2 border-slate-200 aspect-square">
-                      <img 
-                        src={day.photoUrl} 
-                        alt={`Skin on ${formatDate(day.date)}`}
-                        className="w-full h-full object-cover"
-                      />
-                      <div className="absolute top-3 right-3">
-                        {day.routineCompleted ? (
-                          <span className="inline-flex items-center space-x-1 px-3 py-1.5 bg-emerald-600 text-white text-xs font-semibold rounded-full">
-                            <CheckCircle className="w-3 h-3" />
-                            <span>Complete</span>
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center space-x-1 px-3 py-1.5 bg-slate-600 text-white text-xs font-semibold rounded-full">
-                            <XCircle className="w-3 h-3" />
-                            <span>Incomplete</span>
-                          </span>
-                        )}
+                    {/* Show all 3 views if available, otherwise show single photo */}
+                    {(day.frontView || day.rightView || day.leftView) ? (
+                      <div className="space-y-2">
+                        <div className="relative rounded-xl overflow-hidden border-2 border-slate-200">
+                          {day.frontView && (
+                            <>
+                              <img 
+                                src={day.frontView} 
+                                alt={`Front view on ${formatDate(day.date)}`}
+                                className="w-full h-full object-cover"
+                              />
+                              <div className="absolute bottom-2 left-2 bg-black/50 text-white text-xs px-2 py-1 rounded">
+                                Front
+                              </div>
+                            </>
+                          )}
+                          <div className="absolute top-3 right-3">
+                            {day.routineCompleted ? (
+                              <span className="inline-flex items-center space-x-1 px-3 py-1.5 bg-emerald-600 text-white text-xs font-semibold rounded-full">
+                                <CheckCircle className="w-3 h-3" />
+                                <span>Complete</span>
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center space-x-1 px-3 py-1.5 bg-slate-600 text-white text-xs font-semibold rounded-full">
+                                <XCircle className="w-3 h-3" />
+                                <span>Incomplete</span>
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2">
+                          {day.rightView && (
+                            <div className="relative rounded-xl overflow-hidden border-2 border-slate-200 aspect-square">
+                              <img 
+                                src={day.rightView} 
+                                alt={`Right view on ${formatDate(day.date)}`}
+                                className="w-full h-full object-cover"
+                              />
+                              <div className="absolute bottom-2 left-2 bg-black/50 text-white text-xs px-2 py-1 rounded">
+                                Right
+                              </div>
+                            </div>
+                          )}
+                          {day.leftView && (
+                            <div className="relative rounded-xl overflow-hidden border-2 border-slate-200 aspect-square">
+                              <img 
+                                src={day.leftView} 
+                                alt={`Left view on ${formatDate(day.date)}`}
+                                className="w-full h-full object-cover"
+                              />
+                              <div className="absolute bottom-2 left-2 bg-black/50 text-white text-xs px-2 py-1 rounded">
+                                Left
+                              </div>
+                            </div>
+                          )}
+                        </div>
                       </div>
-                    </div>
+                    ) : (
+                      <div className="relative rounded-xl overflow-hidden border-2 border-slate-200 aspect-square">
+                        <img 
+                          src={day.photoUrl} 
+                          alt={`Skin on ${formatDate(day.date)}`}
+                          className="w-full h-full object-cover"
+                        />
+                        <div className="absolute top-3 right-3">
+                          {day.routineCompleted ? (
+                            <span className="inline-flex items-center space-x-1 px-3 py-1.5 bg-emerald-600 text-white text-xs font-semibold rounded-full">
+                              <CheckCircle className="w-3 h-3" />
+                              <span>Complete</span>
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center space-x-1 px-3 py-1.5 bg-slate-600 text-white text-xs font-semibold rounded-full">
+                              <XCircle className="w-3 h-3" />
+                              <span>Incomplete</span>
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    )}
                   </div>
 
                   {/* Details Section */}
@@ -216,20 +331,6 @@ const History = () => {
                                 </span>
                               </div>
                             ))}
-                        </div>
-                        <div className="bg-slate-50 rounded-lg p-3 border border-slate-200">
-                          <div className="flex items-center justify-between mb-2">
-                            <span className="text-xs font-semibold text-slate-600 uppercase tracking-wide">Progress</span>
-                            <span className="text-sm font-bold text-slate-900">
-                              {day.routineSteps.completedSteps}/{day.routineSteps.totalSteps}
-                            </span>
-                          </div>
-                          <div className="w-full h-2 bg-slate-200 rounded-full overflow-hidden">
-                            <div 
-                              className="h-2 bg-violet-600 rounded-full transition-all duration-300"
-                              style={{ width: `${(day.routineSteps.completedSteps / day.routineSteps.totalSteps) * 100}%` }}
-                            />
-                          </div>
                         </div>
                       </div>
                     )}
@@ -279,27 +380,33 @@ const History = () => {
                     )}
 
                     {/* AI Insights */}
-                    {day.progressMetrics && day.progressMetrics.length > 0 && (
+                    {!(analytics?.isReset && analytics?.baselineDate && day.date < analytics.baselineDate) && (
                       <div className="bg-cyan-50 rounded-xl p-5 border-2 border-cyan-200">
-                        <div className="flex items-start space-x-3 mb-3">
+                        <div className="flex items-start space-x-3">
                           <div className="p-1.5 bg-cyan-200 rounded-lg">
                             <Sparkles className="w-4 h-4 text-cyan-700" />
                           </div>
                           <div className="flex-1">
-                            <h4 className="text-sm font-bold text-cyan-900 mb-1 uppercase tracking-wide">AI Insight</h4>
-                            <p className="text-sm text-cyan-800 leading-relaxed">
-                              {day.progressMetrics[day.progressMetrics.length - 1].insightMessage}
+                            <h4 className="text-sm font-bold text-cyan-900 mb-2 uppercase tracking-wide">Daily Insight</h4>
+                            <p className="text-sm text-cyan-800 leading-relaxed whitespace-pre-line">
+                              {getDayInsight(day)}
                             </p>
-                          </div>
-                        </div>
-                        <div className="flex flex-wrap gap-2 mt-3">
-                          <div className="flex items-center space-x-2">
-                            <span className="text-xs font-semibold text-cyan-700">Acne:</span>
-                            {getTrendBadge(day.progressMetrics[day.progressMetrics.length - 1].acneTrend)}
-                          </div>
-                          <div className="flex items-center space-x-2">
-                            <span className="text-xs font-semibold text-cyan-700">Redness:</span>
-                            {getTrendBadge(day.progressMetrics[day.progressMetrics.length - 1].rednessTrend)}
+                            {day.progressMetrics && day.progressMetrics.length > 0 && (
+                              <div className="flex flex-wrap gap-2 mt-3">
+                                {day.progressMetrics[0].acneTrend && (
+                                  <div className="flex items-center space-x-2">
+                                    <span className="text-xs font-semibold text-cyan-700">Acne:</span>
+                                    {getTrendBadge(day.progressMetrics[0].acneTrend)}
+                                  </div>
+                                )}
+                                {day.progressMetrics[0].rednessTrend && (
+                                  <div className="flex items-center space-x-2">
+                                    <span className="text-xs font-semibold text-cyan-700">Redness:</span>
+                                    {getTrendBadge(day.progressMetrics[0].rednessTrend)}
+                                  </div>
+                                )}
+                              </div>
+                            )}
                           </div>
                         </div>
                       </div>

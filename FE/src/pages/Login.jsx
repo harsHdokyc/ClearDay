@@ -17,8 +17,8 @@ const Login = () => {
   }, [isLoaded, isSignedIn, navigate, location]);
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-slate-50 py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-md w-full mx-auto">
+    <div className="h-screen flex items-center justify-center bg-slate-50 px-4 sm:px-6 lg:px-8">
+      <div className="max-w-md w-full">
         {/* Header */}
         <div className="text-center mb-8">
           <h1 className="text-4xl font-bold text-slate-900 mb-3">
@@ -34,7 +34,7 @@ const Login = () => {
           <SignIn 
             path="/sign-in"
             routing="path"
-            signUpUrl="/sign-up"
+            signUpUrl="/sign-in"
             forceRedirectUrl="/dashboard"
             afterSignInUrl="/dashboard"
             appearance={{

@@ -56,8 +56,8 @@ class PuterAIService {
     }
   }
 
-  // Basic chat with Claude
-  async chat(prompt, options = {}) {
+  // Basic chat with Claude (supports images)
+  async chat(prompt, imageUrlOrUrls = null, options = {}) {
     await this.initialize();
     
     const { model = this.model, stream = false } = options;
@@ -67,60 +67,141 @@ class PuterAIService {
     }
     
     try {
-      const response = await window.puter.ai.chat(prompt, { model, stream });
+      let response;
+      if (imageUrlOrUrls) {
+        const images = Array.isArray(imageUrlOrUrls) ? imageUrlOrUrls : [imageUrlOrUrls];
+        response = await window.puter.ai.chat(prompt, images, { model, stream });
+      } else {
+        response = await window.puter.ai.chat(prompt, { model, stream });
+      }
       
       if (stream) {
-        return response; // Return stream for streaming responses
-      } else {
-        return response.message.content[0].text;
+        return response;
       }
+      
+      // Extract text from response (Puter.js returns response.message.content as string)
+      if (response?.message?.content) {
+        return typeof response.message.content === 'string' 
+          ? response.message.content 
+          : response.message.content[0]?.text || response.message.content[0] || '';
+      }
+      
+      return response?.text || response?.message?.text || response || '';
     } catch (error) {
       console.error('Puter AI Error:', error);
       throw error;
     }
   }
 
-  // Progress analysis for skincare
-  async analyzeProgress(userProfile, recentLogs, photoUrl) {
+  // Progress analysis for skincare (supports single photo or multi-view)
+  async analyzeProgress(userProfile, recentLogs, photoUrlOrUrls) {
+    // Handle both single photo (backward compatibility) and multi-view photos
+    const isMultiView = photoUrlOrUrls && 
+                       typeof photoUrlOrUrls === 'object' && 
+                       photoUrlOrUrls !== null && 
+                       !Array.isArray(photoUrlOrUrls);
+    const photoUrls = isMultiView ? photoUrlOrUrls : { front: photoUrlOrUrls };
+    
+    const hasAllViews = photoUrls.front && photoUrls.right && photoUrls.left;
+    
+    // Build array of image URLs for Puter.js
+    const imageUrls = [];
+    if (photoUrls.front) imageUrls.push(photoUrls.front);
+    if (photoUrls.right) imageUrls.push(photoUrls.right);
+    if (photoUrls.left) imageUrls.push(photoUrls.left);
+    
     const prompt = `
-      Analyze this skincare progress data and the provided photo to give accurate insights in JSON format:
-      
-      User Profile:
-      - Skin Goal: ${userProfile.skinGoal}
-      - Skin Type: ${userProfile.skinType}
-      - Days Tracked: ${userProfile.totalDaysTracked || 0}
-      - Recent Progress: ${recentLogs.length} days of data
-      
-      Photo Analysis: Based on the provided photo URL ${photoUrl}, analyze the actual skin condition visible in the photo. Look for:
-      - Acne/breakouts severity
-      - Redness/inflammation
-      - Skin texture and clarity
-      - Overall skin condition
-      
-      Recent Data: ${JSON.stringify(recentLogs.slice(0, 3))}
-      
-      Compare the current photo with recent trends and provide an accurate assessment.
-      
-      Return JSON with this exact structure:
-      {
-        "acneTrend": "increasing|decreasing|stable|mild|severe",
-        "rednessTrend": "increasing|decreasing|stable|mild|severe", 
-        "insightMessage": "Brief personalized insight (2-3 sentences) based on actual photo analysis"
-      }
-    `;
+You are a dermatology AI assistant analyzing skincare progress photos. 
+
+${hasAllViews 
+  ? `You have THREE images to analyze: front view, right side view, and left side view.
+Analyze ALL THREE images together. Look at each view carefully and compare them to get a comprehensive assessment of the skin condition.
+
+IMPORTANT: You MUST analyze the actual images provided. Look at:
+- The front view image for overall facial skin condition
+- The right side view image for right cheek and side profile skin
+- The left side view image for left cheek and side profile skin
+- Compare all three views to identify patterns, asymmetries, and overall skin health
+
+Be SPECIFIC about what you see in the images:
+- Describe visible acne, pimples, or breakouts you can see
+- Describe redness, inflammation, or irritation visible in the photos
+- Note skin texture, clarity, and any visible improvements or concerns
+- Mention specific areas (forehead, cheeks, chin, etc.) where you observe changes`
+  : photoUrls.front 
+    ? `You have ONE image to analyze: front view of the face.
+Analyze this image carefully to assess the skin condition.
+
+IMPORTANT: You MUST analyze the actual image provided. Look at:
+- Visible acne, pimples, or breakouts
+- Redness, inflammation, or irritation
+- Skin texture and clarity
+- Specific areas of concern or improvement
+
+Be SPECIFIC about what you see in the image.`
+    : 'No images provided.'}
+
+User Profile:
+- Skin Goal: ${userProfile.skinGoal}
+- Skin Type: ${userProfile.skinType}
+- Days Tracked: ${userProfile.totalDaysTracked || 0}
+- Recent Progress: ${recentLogs.length} days of data
+
+Recent Historical Data: ${JSON.stringify(recentLogs.slice(0, 3))}
+
+ANALYSIS REQUIREMENTS:
+1. Look at the actual image(s) and assess:
+   - Acne/breakouts: Count visible pimples, assess severity, distribution. Be specific about what you see.
+   - Redness/inflammation: Assess redness intensity, areas affected. Describe the redness you observe.
+   - Skin texture: Smoothness, clarity, overall condition. Note any visible texture changes.
+   ${hasAllViews ? '- Compare views: Look for asymmetries, different patterns in each angle. Note differences between front, right, and left views.' : ''}
+
+2. Rate on 0-10 scale:
+   - Acne Level: 0=clear, 1-3=mild (few small pimples), 4-6=moderate (several pimples), 7-8=severe (many pimples/breakouts), 9-10=very severe (extensive breakouts)
+   - Redness Level: 0=no redness, 1-3=mild (slight pink), 4-6=moderate (noticeable redness), 7-8=severe (significant redness), 9-10=very severe (intense redness/inflammation)
+
+3. Determine trends by comparing with recent data (if available)
+
+4. Generate insightMessage that:
+   - MUST reference specific observations from the images (e.g., "I can see X pimples on your forehead", "Your right cheek shows Y", "The images reveal Z")
+   - MUST be based on what you actually see in the photos, not generic advice
+   - Should mention specific areas or features visible in the images
+   - Include brief analysis of what the images show
+   - End with motivational but realistic feedback
+
+Return ONLY valid JSON with this exact structure (no markdown, no code blocks):
+{
+  "acneLevel": <number 0-10>,
+  "rednessLevel": <number 0-10>,
+  "acneTrend": "increasing|decreasing|stable|mild|moderate|severe",
+  "rednessTrend": "increasing|decreasing|stable|mild|moderate|severe",
+  "insightMessage": "Based on ${hasAllViews ? 'the three photos (front, right, and left views)' : 'the photo'}, I can see [specific observation from images]. [Detailed analysis of what the images show]. [Motivational ending]."
+}
+
+IMPORTANT: Do NOT wrap the JSON in markdown code blocks. Return ONLY the raw JSON object.
+`;
 
     try {
-      const response = await this.chat(prompt);
+      const imagesToAnalyze = imageUrls.length > 0 ? (imageUrls.length === 1 ? imageUrls[0] : imageUrls) : null;
+      const response = await this.chat(prompt, imagesToAnalyze);
       
-      // Try to parse as JSON
+      // Parse JSON response (handle markdown code blocks)
+      let cleanedResponse = response.trim();
+      cleanedResponse = cleanedResponse.replace(/^```(?:json)?\s*\n?/i, '');
+      cleanedResponse = cleanedResponse.replace(/\n?```\s*$/i, '');
+      cleanedResponse = cleanedResponse.trim();
+      
       let parsed;
       try {
-        parsed = JSON.parse(response);
+        parsed = JSON.parse(cleanedResponse);
       } catch (parseError) {
-        // If JSON parsing fails, try to extract JSON from the response
-        const jsonMatch = response.match(/\{[^}]+\}/);
+        // Extract JSON from response if wrapped in markdown
+        const jsonMatch = response.match(/\{[\s\S]*\}/);
         if (jsonMatch) {
-          parsed = JSON.parse(jsonMatch[0]);
+          let jsonStr = jsonMatch[0];
+          jsonStr = jsonStr.replace(/^```(?:json)?\s*\n?/i, '');
+          jsonStr = jsonStr.replace(/\n?```\s*$/i, '');
+          parsed = JSON.parse(jsonStr.trim());
         } else {
           throw new Error('Could not extract valid JSON from response');
         }
@@ -188,6 +269,7 @@ class PuterAIService {
       - fake or manipulated reviews
 
       Product to Evaluate: ${productName}
+      ${productName.includes('http') ? 'NOTE: A product URL has been provided. You can access this URL directly to gather detailed product information including ingredients, claims, reviews, and specifications. Use this URL to enhance your evaluation with real-time product data.' : ''}
       User Profile:
       - Goal: ${goal}
       - Skin Type: ${skinType}

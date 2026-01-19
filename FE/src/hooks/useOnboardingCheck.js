@@ -51,37 +51,55 @@ export const useOnboardingCheck = ({
           // User has completed onboarding
           dispatch(setUserProfile(userData));
           setHasCompletedOnboarding(true);
+          setIsLoading(false);
           
           if (redirectIfComplete) {
             navigate('/dashboard', { replace: true });
           }
         } else {
-          // User hasn't completed onboarding
+          // User hasn't completed onboarding (profile exists but missing required fields)
           setHasCompletedOnboarding(false);
+          setIsLoading(false);
           
           if (redirectIfIncomplete) {
             navigate('/onboarding', { replace: true });
           }
         }
       } catch (err) {
-        // If profile doesn't exist (404), user hasn't completed onboarding
+        console.error('Error checking onboarding status:', err);
+        
+        // Only redirect to onboarding if profile doesn't exist (404)
+        // For other errors (network, server errors, etc.), don't redirect
+        // This prevents redirecting existing users on temporary errors
         if (err.response?.status === 404) {
+          // Profile doesn't exist - user hasn't completed onboarding
           setHasCompletedOnboarding(false);
+          setIsLoading(false);
           
           if (redirectIfIncomplete) {
             navigate('/onboarding', { replace: true });
           }
         } else {
-          console.error('Error checking onboarding status:', err);
-          // On error, assume incomplete to be safe
-          setHasCompletedOnboarding(false);
+          // For other errors (network, 500, timeout, etc.), don't assume incomplete
+          // This prevents redirecting existing users on refresh if API temporarily fails
+          console.warn('Non-404 error during onboarding check - not redirecting:', {
+            status: err.response?.status,
+            message: err.message,
+            url: err.config?.url
+          });
           
-          if (redirectIfIncomplete) {
-            navigate('/onboarding', { replace: true });
+          // If we have profile data in Redux, trust it even if API call failed
+          if (profile?.profile?.skinGoal && profile?.profile?.skinType) {
+            setHasCompletedOnboarding(true);
+          } else {
+            // If no profile data and it's not a 404, assume incomplete but DON'T redirect
+            // This allows the user to stay on their current page
+            // The ProtectedRoute will handle showing loading/error states
+            setHasCompletedOnboarding(false);
+            // Important: Don't redirect on non-404 errors to avoid breaking existing users
           }
+          setIsLoading(false);
         }
-      } finally {
-        setIsLoading(false);
       }
     };
 

@@ -12,7 +12,7 @@ import { Sparkles } from 'lucide-react';
 const ProtectedRoute = ({ children }) => {
   const { isLoaded, isSignedIn } = useAuth();
   const location = useLocation();
-  const { isLoading } = useOnboardingCheck({ redirectIfIncomplete: true });
+  const { isLoading, hasCompletedOnboarding } = useOnboardingCheck({ redirectIfIncomplete: true });
 
   // Show loading state while checking authentication
   if (!isLoaded) {
@@ -47,6 +47,9 @@ const ProtectedRoute = ({ children }) => {
     );
   }
 
+  // The hook handles redirects internally when redirectIfIncomplete is true
+  // It only redirects on 404 (user doesn't exist), not on other errors
+  // So we can safely render children here - if redirect was needed, it already happened
   return children;
 };
 

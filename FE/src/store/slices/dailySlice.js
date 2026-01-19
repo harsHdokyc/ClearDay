@@ -8,6 +8,7 @@ const initialState = {
   hasUploadedToday: false,
   todayLog: null,
   history: [],
+  analytics: null, // Store analytics data including baselineDate and isReset
   loading: false,
   error: null,
 };
@@ -35,15 +36,16 @@ const dailySlice = createSlice({
     },
     setTodayLog: (state, action) => {
       state.todayLog = action.payload;
-      if (action.payload?.routineCompleted) {
-        state.hasCompletedToday = true;
-      }
-      if (action.payload?.photoUrl) {
-        state.hasUploadedToday = true;
-      }
+      // Update completion status based on routineCompleted flag
+      state.hasCompletedToday = !!action.payload?.routineCompleted;
+      // Update upload status based on photoUrl
+      state.hasUploadedToday = !!action.payload?.photoUrl;
     },
     setHistory: (state, action) => {
-      state.history = action.payload;
+      state.history = action.payload.logs || action.payload;
+      if (action.payload.analytics) {
+        state.analytics = action.payload.analytics;
+      }
       state.loading = false;
       state.error = null;
     },

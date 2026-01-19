@@ -1,21 +1,80 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useUser } from '@clerk/clerk-react';
 import { useDispatch, useSelector } from 'react-redux';
 import { setProductEvaluation, setLoading } from '../store/slices/aiSlice.js';
-import { aiAPI } from '../services/api.js';
+import { setProfile as setUserProfile, setLoading as setUserLoading } from '../store/slices/userSlice.js';
+import { aiAPI, userAPI } from '../services/api.js';
 import puterAI from '../services/puterAI.js';
-import { Sparkles, Target, Droplets, AlertCircle, ChevronRight, Award } from 'lucide-react';
+import { Sparkles, Target, Droplets, AlertCircle, ChevronRight, Award, Link2, Type } from 'lucide-react';
 
 const ProductEvaluation = () => {
+  const { user } = useUser();
   const dispatch = useDispatch();
   const { productEvaluation, loading } = useSelector((state) => state.ai);
   const { profile } = useSelector((state) => state.user);
   
   const [formData, setFormData] = useState({
     productName: '',
-    goal: profile?.profile?.skinGoal || '',
-    skinType: profile?.profile?.skinType || '',
+    productUrl: '',
+    inputType: 'name', // 'name' or 'url'
+    goal: '',
+    skinType: '',
     sensitivity: 'normal'
   });
+
+  // Fetch profile on component mount
+  useEffect(() => {
+    const fetchProfile = async () => {
+      if (!user?.id) return;
+      
+      // Check if profile is already in Redux store
+      if (profile?.profile?.skinGoal && profile?.profile?.skinType) {
+        setFormData(prev => ({
+          ...prev,
+          goal: profile.profile.skinGoal,
+          skinType: profile.profile.skinType
+        }));
+        return;
+      }
+
+      // Fetch profile from API
+      dispatch(setUserLoading(true));
+      try {
+        const response = await userAPI.getProfile(user.id);
+        if (response.data.success) {
+          const userData = response.data.data;
+          dispatch(setUserProfile(userData));
+          
+          // Update form data with fetched profile
+          if (userData?.profile?.skinGoal && userData?.profile?.skinType) {
+            setFormData(prev => ({
+              ...prev,
+              goal: userData.profile.skinGoal,
+              skinType: userData.profile.skinType
+            }));
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching profile:', error);
+        // Profile might not exist yet, that's okay
+      } finally {
+        dispatch(setUserLoading(false));
+      }
+    };
+
+    fetchProfile();
+  }, [user?.id, dispatch]);
+
+  // Update form data when profile changes in Redux store
+  useEffect(() => {
+    if (profile?.profile?.skinGoal && profile?.profile?.skinType) {
+      setFormData(prev => ({
+        ...prev,
+        goal: profile.profile.skinGoal,
+        skinType: profile.profile.skinType
+      }));
+    }
+  }, [profile]);
 
   const goals = [
     { value: 'acne', label: 'Clear Acne' },
@@ -38,13 +97,19 @@ const ProductEvaluation = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!formData.productName) return;
+    const productInput = formData.inputType === 'url' ? formData.productUrl : formData.productName;
+    if (!productInput) return;
 
     dispatch(setLoading(true));
     
     try {
+      // Pass URL or name to the AI evaluation
+      const productIdentifier = formData.inputType === 'url' 
+        ? `Product URL: ${formData.productUrl}` 
+        : formData.productName;
+      
       const evaluation = await puterAI.evaluateProduct(
-        formData.productName,
+        productIdentifier,
         formData.goal,
         formData.skinType,
         formData.sensitivity
@@ -54,7 +119,7 @@ const ProductEvaluation = () => {
       
       await aiAPI.getProductEvaluation({
         evaluation,
-        productName: formData.productName
+        productName: formData.inputType === 'url' ? formData.productUrl : formData.productName
       });
     } catch (error) {
       console.error('Failed to evaluate product:', error);
@@ -103,60 +168,96 @@ const ProductEvaluation = () => {
             </div>
             
             <div className="space-y-6">
-              {/* Product Name */}
+              {/* Input Type Toggle */}
               <div>
-                <label htmlFor="productName" className="block text-sm font-bold text-slate-900 mb-2 uppercase tracking-wide">
-                  Product Name *
+                <label className="block text-sm font-bold text-slate-900 mb-3 uppercase tracking-wide">
+                  Input Type *
                 </label>
-                <input
-                  type="text"
-                  id="productName"
-                  value={formData.productName}
-                  onChange={(e) => setFormData({ ...formData, productName: e.target.value })}
-                  className="block w-full px-4 py-3 border-2 border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                  placeholder="e.g., CeraVe Foaming Cleanser"
-                />
+                <div className="flex gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setFormData({ ...formData, inputType: 'name', productUrl: '' })}
+                    className={`flex-1 flex items-center justify-center space-x-2 px-4 py-3 rounded-xl border-2 transition-all font-semibold ${
+                      formData.inputType === 'name'
+                        ? 'bg-blue-100 border-blue-500 text-blue-700'
+                        : 'bg-white border-slate-200 text-slate-600 hover:border-slate-300'
+                    }`}
+                  >
+                    <Type className="w-4 h-4" />
+                    <span>Product Name</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setFormData({ ...formData, inputType: 'url', productName: '' })}
+                    className={`flex-1 flex items-center justify-center space-x-2 px-4 py-3 rounded-xl border-2 transition-all font-semibold ${
+                      formData.inputType === 'url'
+                        ? 'bg-blue-100 border-blue-500 text-blue-700'
+                        : 'bg-white border-slate-200 text-slate-600 hover:border-slate-300'
+                    }`}
+                  >
+                    <Link2 className="w-4 h-4" />
+                    <span>Product URL</span>
+                  </button>
+                </div>
               </div>
 
-              {/* Skin Goal */}
-              <div>
-                <label htmlFor="goal" className="block text-sm font-bold text-slate-900 mb-2 uppercase tracking-wide">
-                  Your Skin Goal
-                </label>
-                <select
-                  id="goal"
-                  value={formData.goal}
-                  onChange={(e) => setFormData({ ...formData, goal: e.target.value })}
-                  className="block w-full px-4 py-3 border-2 border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all appearance-none bg-white cursor-pointer"
-                >
-                  <option value="">Select goal</option>
-                  {goals.map((goal) => (
-                    <option key={goal.value} value={goal.value}>
-                      {goal.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
+              {/* Product Name or URL Input */}
+              {formData.inputType === 'name' ? (
+                <div>
+                  <label htmlFor="productName" className="block text-sm font-bold text-slate-900 mb-2 uppercase tracking-wide">
+                    Product Name *
+                  </label>
+                  <input
+                    type="text"
+                    id="productName"
+                    value={formData.productName}
+                    onChange={(e) => setFormData({ ...formData, productName: e.target.value })}
+                    className="block w-full px-4 py-3 border-2 border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                    placeholder="e.g., CeraVe Foaming Cleanser"
+                  />
+                </div>
+              ) : (
+                <div>
+                  <label htmlFor="productUrl" className="block text-sm font-bold text-slate-900 mb-2 uppercase tracking-wide">
+                    Product URL *
+                  </label>
+                  <input
+                    type="url"
+                    id="productUrl"
+                    value={formData.productUrl}
+                    onChange={(e) => setFormData({ ...formData, productUrl: e.target.value })}
+                    className="block w-full px-4 py-3 border-2 border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                    placeholder="e.g., https://www.sephora.com/product/..."
+                  />
+                  <p className="mt-2 text-xs text-slate-500">
+                    Paste the product page URL from Sephora, Ulta, Amazon, or brand website for better AI analysis
+                  </p>
+                </div>
+              )}
 
-              {/* Skin Type */}
-              <div>
-                <label htmlFor="skinType" className="block text-sm font-bold text-slate-900 mb-2 uppercase tracking-wide">
-                  Skin Type
-                </label>
-                <select
-                  id="skinType"
-                  value={formData.skinType}
-                  onChange={(e) => setFormData({ ...formData, skinType: e.target.value })}
-                  className="block w-full px-4 py-3 border-2 border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all appearance-none bg-white cursor-pointer"
-                >
-                  <option value="">Select skin type</option>
-                  {skinTypes.map((type) => (
-                    <option key={type.value} value={type.value}>
-                      {type.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
+              {/* Skin Goal - Read Only */}
+              {formData.goal && (
+                <div>
+                  <label className="block text-sm font-bold text-slate-900 mb-2 uppercase tracking-wide">
+                    Your Skin Goal
+                  </label>
+                  <div className="block w-full px-4 py-3 bg-slate-50 border-2 border-slate-200 rounded-xl text-slate-900">
+                    {goals.find(g => g.value === formData.goal)?.label || formData.goal}
+                  </div>
+                </div>
+              )}
+
+              {/* Skin Type - Read Only */}
+              {formData.skinType && (
+                <div>
+                  <label className="block text-sm font-bold text-slate-900 mb-2 uppercase tracking-wide">
+                    Skin Type
+                  </label>
+                  <div className="block w-full px-4 py-3 bg-slate-50 border-2 border-slate-200 rounded-xl text-slate-900">
+                    {skinTypes.find(t => t.value === formData.skinType)?.label || formData.skinType}
+                  </div>
+                </div>
+              )}
 
               {/* Sensitivity Level */}
               <div>
@@ -180,7 +281,7 @@ const ProductEvaluation = () => {
               {/* Submit Button */}
               <button
                 onClick={handleSubmit}
-                disabled={loading || !formData.productName}
+                disabled={loading || (formData.inputType === 'name' ? !formData.productName : !formData.productUrl)}
                 className="w-full bg-blue-600 text-white py-4 px-6 rounded-xl font-semibold hover:bg-blue-700 disabled:bg-slate-300 disabled:cursor-not-allowed transition-all duration-200 flex items-center justify-center space-x-2"
               >
                 {loading ? (
