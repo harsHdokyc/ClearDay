@@ -578,6 +578,11 @@ const Dashboard = () => {
       await aiAPI.getProgressAnalysis({ analysis });
     } catch (error) {
       console.error('Failed to generate progress analysis:', error);
+      // Check if it's an authentication error
+      if (error?.message?.includes('authentication') || error?.message?.includes('401')) {
+        console.warn('Puter.js AI authentication issue - AI features may require sign-in');
+        // You could show a user-friendly message here or fallback to backend AI
+      }
       // Silently fail - analysis will be generated on next upload
     }
   };

@@ -44,6 +44,33 @@ class PuterAIService {
     return this.initPromise;
   }
 
+  // Check if Puter.js authentication is needed and handle it
+  async ensureAuthenticated() {
+    try {
+      await this.initialize();
+      
+      // Puter.js AI features typically work without explicit authentication
+      // The whoami 401 error is harmless if AI features still function
+      // We'll suppress authentication errors and let AI calls proceed
+      if (window.puter?.auth) {
+        // Check auth status but don't require it for AI features
+        const isSignedIn = window.puter.auth.isSignedIn();
+        if (!isSignedIn) {
+          // AI features may still work without sign-in
+          // Puter.js allows AI usage without explicit authentication
+        }
+      }
+    } catch (error) {
+      // Suppress authentication errors - AI features might still work
+      // The whoami 401 error is expected if user hasn't signed in via Puter
+      if (error?.message?.includes('401') || error?.code === 'token_auth_failed') {
+        // This is expected and harmless - continue
+        return;
+      }
+      console.warn('Puter.js authentication check:', error);
+    }
+  }
+
   // Test method to verify Puter.js is working
   async testConnection() {
     try {
@@ -59,6 +86,7 @@ class PuterAIService {
   // Basic chat with Claude (supports images)
   async chat(prompt, imageUrlOrUrls = null, options = {}) {
     await this.initialize();
+    await this.ensureAuthenticated();
     
     const { model = this.model, stream = false } = options;
     
@@ -88,6 +116,12 @@ class PuterAIService {
       
       return response?.text || response?.message?.text || response || '';
     } catch (error) {
+      // Handle authentication errors gracefully
+      if (error?.message?.includes('401') || error?.code === 'token_auth_failed' || error?.message?.includes('Authentication failed')) {
+        console.warn('Puter.js authentication error - AI features may require sign-in:', error);
+        // You might want to show a user-friendly message or fallback to backend AI
+        throw new Error('AI service authentication failed. Please try again or contact support.');
+      }
       console.error('Puter AI Error:', error);
       throw error;
     }
