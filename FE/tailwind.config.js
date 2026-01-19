@@ -7,6 +7,25 @@ export default {
   ],
   theme: {
   	extend: {
+  		fontFamily: {
+  			'serif-display': ['DM Serif Display', 'serif'],
+  			'grotesk': ['Space Grotesk', 'sans-serif'],
+  			'sans': ['Inter', 'sans-serif'],
+  		},
+  		animation: {
+  			'fade-in': 'fadeIn 0.8s ease-out forwards',
+  			'pulse-slow': 'pulseSlow 4s ease-in-out infinite',
+  		},
+  		keyframes: {
+  			fadeIn: {
+  				'0%': { opacity: '0', transform: 'translateY(20px)' },
+  				'100%': { opacity: '1', transform: 'translateY(0)' },
+  			},
+  			pulseSlow: {
+  				'0%, 100%': { opacity: '0.3' },
+  				'50%': { opacity: '0.2' },
+  			},
+  		},
   		borderRadius: {
   			lg: 'var(--radius)',
   			md: 'calc(var(--radius) - 2px)',
